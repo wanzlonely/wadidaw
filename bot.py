@@ -1427,6 +1427,13 @@ def _get_api_jar(driver, s):
         return jar
     except Exception: return {}
 
+def _tg_group_link(gid_str):
+    gid_str = str(gid_str).strip()
+    raw = gid_str.lstrip("-")
+    if raw.startswith("100"):
+        raw = raw[3:]
+    return f"https://t.me/c/{raw}/1"
+
 def forward_otp_to_group(cid, s, item):
     gid     = s.get("fwd_group_id")
     if not gid:
@@ -1445,16 +1452,15 @@ def forward_otp_to_group(cid, s, item):
         return
     ts      = datetime.now().strftime("%H:%M:%S")
     channel = range_s or country or "—"
-    text = (
-        f"{flag} <b>WhatsApp OTP</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📱 <code>{masked}</code>\n\n"
-        f"🔑 <b>{esc(otp)}</b>\n\n"
-        f"<code>{'Channel':<14}{'Number'}</code>\n"
-        f"<code>{esc(channel[:14]):<14}{nomor}</code>\n"
-        f"<i>{ts}</i>"
-    )
-    kb = {"inline_keyboard": [[{"text": f"📋 Copy OTP: {otp}", "callback_data": f"copy:{otp}"}]]}
+    text    = f"<b>WP</b> 🐠 <code>{masked}</code> {flag}"
+    grp_link = _tg_group_link(gid)
+    kb = {"inline_keyboard": [
+        [{"text": f"📋 {otp}", "copy_text": {"text": otp}}],
+        [
+            {"text": "📥 Ambil Nomor", "url": grp_link},
+            {"text": f"📡 {channel[:22]}", "url": URL_SMS_RCV},
+        ],
+    ]}
     s["otp_queue"].append({"ts": ts, "nomor": masked, "country": country, "otp": otp})
     try:
         tg_post("sendMessage", {
