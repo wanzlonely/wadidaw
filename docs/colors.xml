@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- WALZPAY color palette — copy to app/src/main/res/values/colors.xml -->
+<resources>
+    <!-- Primary Ocean Blue -->
+    <color name="primary">#0077B6</color>
+    <color name="primary_dark">#023E8A</color>
+    <color name="primary_light">#00B4D8</color>
+    <color name="accent">#48CAE4</color>
+
+    <!-- Background -->
+    <color name="bg_dark">#0A1628</color>
+    <color name="bg_surface">#0F1C2E</color>
+
+    <!-- Glass / Liquid Glass -->
+    <color name="glass_bg">#33FFFFFF</color>
+    <color name="glass_border">#55CAF0F8</color>
+    <color name="glass_highlight">#22FFFFFF</color>
+
+    <!-- Text -->
+    <color name="text_primary">#F0F9FF</color>
+    <color name="text_secondary">#90E0EF</color>
+    <color name="text_muted">#7BA3B8</color>
+
+    <!-- Status -->
+    <color name="success">#00C853</color>
+    <color name="warning">#FFB300</color>
+    <color name="error">#FF5252</color>
+</resources>
