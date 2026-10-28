@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="20dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="WALZPAY Listener"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:paddingBottom="12dp" />
+
+        <TextView
+            android:id="@+id/tvPermissionStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cek status izin..."
+            android:paddingBottom="8dp" />
+
+        <Button
+            android:id="@+id/btnOpenNotificationAccess"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Buka Pengaturan Akses Notifikasi" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Webhook URL"
+            android:paddingTop="16dp" />
+
+        <EditText
+            android:id="@+id/etWebhookUrl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="https://domain-kamu.vercel.app/api/webhook"
+            android:inputType="textUri" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Secret (opsional)"
+            android:paddingTop="12dp" />
+
+        <EditText
+            android:id="@+id/etSecret"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="WEBHOOK_SECRET jika dipakai"
+            android:inputType="textPassword" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switchEnabled"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Aktifkan Listener"
+            android:paddingTop="16dp" />
+
+        <Button
+            android:id="@+id/btnSave"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Simpan Pengaturan"
+            android:layout_marginTop="12dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="24dp"
+            android:text="Tips: Pasang Service Keeper dan monitor service com.walzpay.listener agar tidak dimatikan sistem."
+            android:textSize="13sp" />
+
+    </LinearLayout>
+</ScrollView>
