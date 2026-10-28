@@ -44,10 +44,10 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       setHookPath(`${window.location.origin}/api/webhook`);
       try {
         const m = localStorage.getItem(LS_MERCHANTS);
-        setMerchants(m ? JSON.parse(m) : { dana: true });
+        setMerchants(m ? JSON.parse(m) : { dana: true, whatsapp: true });
         setSound(localStorage.getItem(LS_SOUND) !== "0");
       } catch {
-        setMerchants({ dana: true });
+        setMerchants({ dana: true, whatsapp: true });
       }
     }
   }, []);
@@ -136,12 +136,15 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
     refresh();
   }
 
-  async function testPay() {
+  async function testPay(kind: "default" | "whatsapp" | "dana") {
     setBusy(true);
     const res = await fetch("/api/test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount: 10000, merchantId: "dana" }),
+      body: JSON.stringify({
+        kind,
+        amount: kind === "whatsapp" ? 25000 : kind === "dana" ? 15000 : 10000,
+      }),
     });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
@@ -177,7 +180,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       {err ? (
         <section className="glass">
           <h2>Error</h2>
-          <p style={{ color: "var(--danger)" }}>{err}</p>
+          <p style={{ color: "var(--rose, #fb7185)" }}>{err}</p>
         </section>
       ) : null}
 
@@ -186,7 +189,8 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
           <p className="label">Masuk hari ini</p>
           <p className="amount">{formatRp(stats?.todayAmount ?? 0)}</p>
           <p className="muted" style={{ marginTop: 6 }}>
-            {stats?.todayCount ?? 0} transaksi · total semua {formatRp(stats?.totalAmount ?? 0)}
+            {stats?.todayCount ?? 0} transaksi · total semua{" "}
+            {formatRp(stats?.totalAmount ?? 0)}
           </p>
         </div>
         <hr className="divider" />
@@ -225,16 +229,44 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
             <p className="muted">{formatTime(stats.latest.receivedAt)}</p>
           </div>
         ) : (
-          <p className="empty">Belum ada data — tekan uji atau tunggu notifikasi dari HP</p>
+          <p className="empty">Belum ada data</p>
         )}
-        <button type="button" className="btn btn-block" disabled={busy} onClick={testPay}>
-          Kirim uji Rp10.000
+      </section>
+
+      <section className="glass">
+        <h2>Uji parser (simulasi)</h2>
+        <p className="muted">
+          Website tidak membaca notifikasi HP. Tombol ini menguji parse + Redis.
+        </p>
+        <button
+          type="button"
+          className="btn btn-block"
+          disabled={busy}
+          onClick={() => testPay("whatsapp")}
+        >
+          Uji notifikasi WhatsApp · Rp25.000
+        </button>
+        <button
+          type="button"
+          className="btn btn-block btn-ghost"
+          disabled={busy}
+          onClick={() => testPay("dana")}
+        >
+          Uji payload DANA · Rp15.000
+        </button>
+        <button
+          type="button"
+          className="btn btn-block btn-ghost"
+          disabled={busy}
+          onClick={() => testPay("default")}
+        >
+          Uji generik · Rp10.000
         </button>
       </section>
 
       <section className="glass">
         <h2>Webhook HP</h2>
-        <p>Tempel di QRIS Hook sebagai URL tujuan.</p>
+        <p>Tempel di QRIS Hook / notification forwarder.</p>
         <code className="code">{hookPath}</code>
         <button type="button" className="btn btn-block" onClick={copyHook}>
           Salin URL
@@ -251,7 +283,13 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
             value={url}
             onChange={(e) => setUrl(e.target.value)}
           />
-          <button type="button" className="btn" style={{ marginTop: 0 }} disabled={busy} onClick={addForward}>
+          <button
+            type="button"
+            className="btn"
+            style={{ marginTop: 0 }}
+            disabled={busy}
+            onClick={addForward}
+          >
             + Tambah
           </button>
         </div>
@@ -260,7 +298,12 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
             <code className="code" style={{ flex: 1, marginTop: 0 }}>
               {f.url}
             </code>
-            <button type="button" className="btn btn-ghost" style={{ marginTop: 0 }} onClick={() => removeForward(f.id)}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ marginTop: 0 }}
+              onClick={() => removeForward(f.id)}
+            >
               Hapus
             </button>
           </div>
@@ -268,8 +311,10 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       </section>
 
       <section className="glass">
-        <h2>Merchant di HP</h2>
-        <p className="muted">Aktifkan package yang sama di QRIS Hook.</p>
+        <h2>Sumber notifikasi</h2>
+        <p className="muted">
+          Preferensi UI. Centang yang kamu pantau di app listener HP.
+        </p>
         {MERCHANTS.map((m) => (
           <label key={m.id} className="check-row">
             <input
@@ -278,10 +323,20 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
               onChange={() => toggleMerchant(m.id)}
             />
             <span>
-              <strong style={{ color: "var(--text)" }}>{m.name}</strong>
+              <strong style={{ color: "var(--ink, #fff)" }}>{m.name}</strong>
+              {" "}
+              {m.builtInQrisHook ? (
+                <span className="badge">QRIS Hook</span>
+              ) : (
+                <span className="badge level-warn">parser WALZPAY</span>
+              )}
               <br />
               <span className="muted" style={{ fontSize: "0.75rem" }}>
                 {m.packages.join(", ")}
+              </span>
+              <br />
+              <span className="muted" style={{ fontSize: "0.72rem" }}>
+                {m.description}
               </span>
             </span>
           </label>
