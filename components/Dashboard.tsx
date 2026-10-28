@@ -36,6 +36,8 @@ export function Dashboard() {
   const [hookPath, setHookPath] = useState("/api/webhook");
   const [busy, setBusy] = useState(false);
   const [lastCount, setLastCount] = useState(0);
+  const [redisOk, setRedisOk] = useState<boolean | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -51,37 +53,53 @@ export function Dashboard() {
   }, []);
 
   const refresh = useCallback(async () => {
-    const [pRes, sRes, fRes] = await Promise.all([
-      fetch("/api/payments").then((r) => r.json()),
-      fetch("/api/service").then((r) => r.json()),
-      fetch("/api/forwards").then((r) => r.json()),
-    ]);
-    setStats(pRes.stats);
-    setActive(Boolean(sRes.active));
-    setForwards(fRes.forwards ?? []);
+    try {
+      const [pRes, sRes, fRes, hRes] = await Promise.all([
+        fetch("/api/payments").then(async (r) => ({ ok: r.ok, data: await r.json() })),
+        fetch("/api/service").then(async (r) => ({ ok: r.ok, data: await r.json() })),
+        fetch("/api/forwards").then(async (r) => ({ ok: r.ok, data: await r.json() })),
+        fetch("/api/health").then(async (r) => ({ ok: r.ok, data: await r.json() })),
+      ]);
 
-    const count = pRes.stats?.count ?? 0;
-    if (sound && lastCount > 0 && count > lastCount) {
-      try {
-        const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.frequency.value = 880;
-        g.gain.value = 0.08;
-        o.start();
-        setTimeout(() => o.stop(), 180);
-      } catch {
-        /* ignore */
+      setRedisOk(Boolean(hRes.data?.redis && hRes.data?.ok));
+      if (!pRes.ok) {
+        setErr(pRes.data?.error || "Gagal memuat payments (cek Upstash env)");
+        return;
       }
+      setErr(null);
+      setStats(pRes.data.stats);
+      setActive(Boolean(sRes.data?.active));
+      setForwards(fRes.data?.forwards ?? []);
+
+      const count = pRes.data.stats?.count ?? 0;
+      if (sound && lastCount > 0 && count > lastCount) {
+        try {
+          const AC =
+            window.AudioContext ||
+            (window as unknown as { webkitAudioContext: typeof AudioContext })
+              .webkitAudioContext;
+          const ctx = new AC();
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.connect(g);
+          g.connect(ctx.destination);
+          o.frequency.value = 880;
+          g.gain.value = 0.08;
+          o.start();
+          setTimeout(() => o.stop(), 180);
+        } catch {
+          /* ignore */
+        }
+      }
+      setLastCount(count);
+    } catch (e) {
+      setErr(String(e));
     }
-    setLastCount(count);
   }, [sound, lastCount]);
 
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 4000);
+    const t = setInterval(refresh, 2000);
     return () => clearInterval(t);
   }, [refresh]);
 
@@ -151,10 +169,31 @@ export function Dashboard() {
   return (
     <>
       <section className="glass">
+        <h2>Status infrastruktur</h2>
+        <p>
+          Redis (Upstash):{" "}
+          {redisOk === null ? (
+            <span className="muted">mengecek…</span>
+          ) : redisOk ? (
+            <span className="badge">Terhubung</span>
+          ) : (
+            <span className="badge level-error">Belum / error</span>
+          )}
+        </p>
+        {err ? <p className="muted" style={{ marginTop: 8, color: "#ff8a80" }}>{err}</p> : null}
+        {!redisOk && redisOk !== null ? (
+          <p className="muted" style={{ marginTop: 8 }}>
+            Set <code>UPSTASH_REDIS_REST_URL</code> &{" "}
+            <code>UPSTASH_REDIS_REST_TOKEN</code> di Vercel, lalu redeploy.
+          </p>
+        ) : null}
+      </section>
+
+      <section className="glass">
         <h2>Akses notifikasi (di HP)</h2>
         <p>
-          Website tidak membaca notifikasi Android. Pasang app listener (QRIS
-          Hook), izinkan akses notifikasi, lalu set webhook ke URL di bawah.
+          Deteksi uang masuk dilakukan app listener di HP. WALZPAY menerima
+          webhook, parse nominal, simpan Redis, tampil di sini (~2 detik).
         </p>
         <code className="code">{hookPath}</code>
         <button type="button" className="btn" onClick={copyHook}>
@@ -167,7 +206,7 @@ export function Dashboard() {
           <h2>WALZPAY Aktif</h2>
           <p>
             {active
-              ? "Menerima event webhook"
+              ? "Menerima event webhook → Redis"
               : "Dijeda — webhook ditolak (503)"}
           </p>
         </div>
@@ -218,19 +257,16 @@ export function Dashboard() {
             <p className="muted">{formatTime(stats.latest.receivedAt)}</p>
           </div>
         ) : (
-          <p className="empty">Belum ada data</p>
+          <p className="empty">Belum ada data di Redis</p>
         )}
         <button type="button" className="btn" disabled={busy} onClick={testPay}>
-          Simulasi pembayaran Rp10.000
+          Kirim uji Rp10.000 ke Redis
         </button>
       </section>
 
       <section className="glass">
         <h2>Webhook lanjutan (forward)</h2>
-        <p>
-          Setelah event masuk ke WALZPAY, forward ke URL lain (server kasir,
-          Discord, n8n, dll.).
-        </p>
+        <p>Setelah masuk Redis, teruskan ke server kasir / n8n / Discord.</p>
         <div className="form-row">
           <input
             className="input"
@@ -265,10 +301,9 @@ export function Dashboard() {
       </section>
 
       <section className="glass">
-        <h2>Merchant (panduan filter di HP)</h2>
+        <h2>Merchant (filter di app HP)</h2>
         <p className="muted">
-          Centang merchant yang kamu pantau di app listener. Preferensi disimpan
-          di browser ini.
+          Pastikan package ini aktif di QRIS Hook. Preferensi UI disimpan lokal.
         </p>
         {MERCHANTS.map((m) => (
           <label key={m.id} className="check-row">
@@ -289,7 +324,7 @@ export function Dashboard() {
       <section className="glass row">
         <div>
           <h2>Suara saat pembayaran baru</h2>
-          <p>Bunyi singkat di tab browser (auto-refresh 4 dtk)</p>
+          <p>Poll Redis setiap 2 detik</p>
         </div>
         <label className="switch">
           <input type="checkbox" checked={sound} onChange={toggleSound} />
