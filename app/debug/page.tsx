@@ -1,13 +1,10 @@
-import { Nav } from "@/components/Nav";
+import { Shell } from "@/components/Shell";
 import { DebugClient } from "@/components/DebugClient";
 
 export default function DebugPage() {
   return (
-    <main className="shell">
-      <div className="logo">WALZPAY</div>
-      <p className="tagline">Debug · log webhook & error</p>
-      <Nav active="/debug" />
+    <Shell active="/debug" subtitle="Log webhook & error">
       <DebugClient />
-    </main>
+    </Shell>
   );
 }
