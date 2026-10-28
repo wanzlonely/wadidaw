@@ -1,6 +1,6 @@
 /**
- * Accepts both simple test payloads and official QRIS Hook JSON:
- * { merchant_id, source_package, payment: { amount }, notification: { title, text } }
+ * Parse webhook bodies from QRIS Hook, test buttons, or notification forwarders.
+ * Supports nested QRIS Hook shape and flat { title, text, packageName }.
  */
 
 export type ParsedPayment = {
@@ -16,6 +16,8 @@ export type ParsedPayment = {
 const PACKAGE_TO_MERCHANT: Record<string, string> = {
   "id.dana": "dana",
   "id.dana.kasir": "dana",
+  "com.whatsapp": "whatsapp",
+  "com.whatsapp.w4b": "whatsapp",
   "com.gojek.gopaymerchant": "gopay",
   "id.co.bri.merchant": "bri",
   "com.interactive.qrisid": "interactive",
@@ -31,6 +33,10 @@ const IGNORE = [
   "tarik tunai",
   "penarikan",
   "pembayaran gagal",
+  "otp",
+  "kode verifikasi",
+  "missed voice call",
+  "missed video call",
 ];
 
 const SUCCESS_HINTS = [
@@ -44,6 +50,11 @@ const SUCCESS_HINTS = [
   "purchase",
   "paid",
   "masuk",
+  "transfer",
+  "kredit",
+  "credit",
+  "terima",
+  "received",
 ];
 
 function asRecord(v: unknown): Record<string, unknown> | null {
@@ -88,6 +99,14 @@ function num(v: unknown): number | null {
   return null;
 }
 
+function extractSender(blob: string): string | null {
+  const m =
+    blob.match(/(?:dari|from|oleh)\s*[:\-]?\s*([A-Za-z0-9 .'+]{2,40})/i) ||
+    blob.match(/a\/n\s*[:\-]?\s*([A-Za-z0-9 .'+]{2,40})/i);
+  if (!m) return null;
+  return m[1].trim().slice(0, 60);
+}
+
 export function parsePaymentBody(
   body: Record<string, unknown>
 ): { ok: true; data: ParsedPayment } | { ok: false; error: string } {
@@ -95,10 +114,7 @@ export function parsePaymentBody(
   const notification = asRecord(body.notification) ?? asRecord(body.raw);
 
   const title = String(
-    body.rawTitle ??
-      body.title ??
-      notification?.title ??
-      ""
+    body.rawTitle ?? body.title ?? notification?.title ?? ""
   );
   const text = String(
     body.rawText ??
@@ -109,7 +125,8 @@ export function parsePaymentBody(
       ""
   );
   const big = String(notification?.big_text ?? body.bigText ?? "");
-  const blob = `${title} ${text} ${big}`.toLowerCase();
+  const combined = `${title} ${text} ${big}`;
+  const blob = combined.toLowerCase();
 
   const packageName =
     String(
@@ -124,7 +141,7 @@ export function parsePaymentBody(
     num(body.amount) ??
     num(body.nominal) ??
     num(payment?.amount) ??
-    extractAmount(`${title} ${text} ${big}`);
+    extractAmount(combined);
 
   if (amount == null || amount <= 0) {
     return { ok: false, error: "amount not found or invalid" };
@@ -148,7 +165,10 @@ export function parsePaymentBody(
     merchantId = PACKAGE_TO_MERCHANT[packageName];
   }
   if (!merchantId) {
-    if (/dana/i.test(blob) || /dana/i.test(packageName || "")) merchantId = "dana";
+    if (/whatsapp|wa business/i.test(packageName || "") || /whatsapp/i.test(blob))
+      merchantId = "whatsapp";
+    else if (/dana/i.test(blob) || /dana/i.test(packageName || ""))
+      merchantId = "dana";
     else if (/gopay|gojek/i.test(blob)) merchantId = "gopay";
     else if (/\bbri\b/i.test(blob)) merchantId = "bri";
     else if (/interactive/i.test(blob)) merchantId = "interactive";
@@ -160,18 +180,21 @@ export function parsePaymentBody(
       ? String(body.senderName)
       : payment?.sender_name != null
         ? String(payment.sender_name)
-        : null;
+        : extractSender(combined);
 
-  const paymentSource =
+  let paymentSource: string | null =
     body.paymentSource != null
       ? String(body.paymentSource)
       : body.source != null
         ? String(body.source)
         : payment?.payment_source != null
           ? String(payment.payment_source)
-          : merchantId === "dana"
-            ? "DANA"
-            : null;
+          : null;
+
+  if (!paymentSource) {
+    if (merchantId === "dana") paymentSource = "DANA";
+    else if (merchantId === "whatsapp") paymentSource = "WhatsApp";
+  }
 
   return {
     ok: true,
