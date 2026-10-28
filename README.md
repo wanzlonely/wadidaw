@@ -1,117 +1,96 @@
 # WALZPAY
 
-Dashboard produksi **notifikasi QRIS → webhook → Upstash Redis → UI**.  
-Brand liquid glass · deploy **Vercel** · data **persisten** di Redis.
+Dashboard **notifikasi QRIS → webhook → Redis → UI** + **auto-match order pending → success**.
+
+Deploy: **Vercel** · Data: **Upstash Redis** · Listener HP: folder `android-listener/`
 
 ---
 
-## Cara kerja sungguhan (bukan demo memory)
+## Alur
 
 ```
-[App di HP: android-listener / QRIS Hook]
-   mendeteksi notifikasi DANA/GoPay/…
-        │  POST JSON  (cepat)
-        ▼
-[POST /api/webhook]  ← parse akurat (amount + merchant)
-        │
-        ▼
-[Upstash Redis]  ← simpan payment + log
-        │
-        ├── dashboard polling 2–4 dtk
-        └── opsional forward ke URL lain
+1. Buat order pending          POST /api/orders  { amount: 50000 }
+2. HP menerima notifikasi DANA
+3. android-listener → POST /api/webhook
+4. Server parse + dedup + match nominal
+5. Order status → success
+6. Dashboard / forward webhook
 ```
 
-**Penting:** Website tidak bisa membaca notifikasi Android. Deteksi “uang masuk” terjadi di **app listener HP**. WALZPAY menyimpan, memvalidasi, menampilkan, dan meneruskan secara **real** lewat Redis.
-
-Akurasi deteksi = kualitas parser di HP **+** parser server (`lib/parse-payment.ts`).
+Website **tidak** membaca notifikasi. Deteksi terjadi di app Android.
 
 ---
 
-## Setup Upstash (wajib)
+## Setup Redis (wajib)
 
-1. Buka [console.upstash.com](https://console.upstash.com) → **Create Database** (Redis)
-2. Tab **REST API** → salin:
-   - `UPSTASH_REDIS_REST_URL`
-   - `UPSTASH_REDIS_REST_TOKEN`
-3. Di **Vercel** → Project → Settings → Environment Variables → paste keduanya
-4. Redeploy
-5. Cek: `https://DOMAIN/api/health` → harus `{ "ok": true, "redis": true }`
+1. [Upstash](https://console.upstash.com) → Create Redis
+2. Salin `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` ke Vercel env
+3. Redeploy · cek `/api/health`
 
 Opsional:
-
 ```
 WEBHOOK_SECRET=rahasia-anda
 ```
 
-Jika di-set, app HP harus kirim header `x-walzpay-secret`.
-
-Lokal: salin `.env.example` → `.env.local`.
+Lokal: salin `.env.example` → `.env.local`
 
 ---
 
-## Hubungkan HP (Android Listener — rekomendasi)
+## Android Listener
 
-Repo ini sudah dilengkapi companion app native di folder **`android-listener/`**.
+Folder **`android-listener/`** — build di Android Studio, install APK.
 
-### Cara build APK
+1. Izinkan Notification Access
+2. Webhook: `https://PROJECT.vercel.app/api/webhook`
+3. Aktifkan listener
+4. Disarankan: [Service Keeper](https://github.com/sklndev/Service-Keeper)
 
-1. Install Android Studio
-2. Buka folder `android-listener/` sebagai project
-3. Build → Build APK(s)
-4. Install APK di HP yang login **DANA Bisnis**
-5. Buka app → izinkan **Notification Access**
-6. Isi Webhook URL:
+Detail: [`android-listener/README.md`](android-listener/README.md)
 
-```
-https://PROJECT.vercel.app/api/webhook
-```
-
-7. (Opsional) isi Secret jika memakai `WEBHOOK_SECRET`
-8. Aktifkan toggle listener
-
-Lihat detail lengkap di [`android-listener/README.md`](android-listener/README.md).
-
-### Alternatif: QRIS Hook
-
-1. Install [QRIS Hook](https://github.com/suriyadi15/qrishook)
-2. Aktifkan akses notifikasi + pilih merchant (DANA: `id.dana`)
-3. Webhook URL yang sama seperti di atas
-
-### Keep-Alive (sangat disarankan)
-
-Android sering mematikan Notification Listener. Gunakan:
-
-- [Service Keeper](https://github.com/sklndev/Service-Keeper)  
-  Monitor service `com.walzpay.listener/.PaymentNotificationListener`
+Alternatif: [QRIS Hook](https://github.com/suriyadi15/qrishook)
 
 ---
 
-## Fitur produksi
-
-- Simpan payment & log di **Upstash Redis** (tahan serverless)
-- Parse nominal IDR (titik ribuan, koma desimal)
-- Map package → merchant (`id.dana` → dana, dll.)
-- Filter notifikasi gagal/promo (heuristik)
-- Multi-forward webhook
-- Pause layanan
-- Statistik harian
-- Export CSV, debug log, health check
-- PWA manifest
-- **Companion Android Listener** (folder `android-listener/`)
-
----
-
-## API ringkas
+## API
 
 | Endpoint | Fungsi |
 |----------|--------|
-| `POST /api/webhook` | Terima event HP → Redis |
-| `GET /api/payments` | List + stats |
+| `POST /api/webhook` | Terima notifikasi → parse → dedup → match order → simpan |
+| `POST /api/orders` | Buat order pending `{ amount, reference?, expiresInMinutes? }` |
+| `GET /api/orders?status=pending` | List order |
+| `DELETE /api/orders?id=ord_…` | Batalkan order pending |
+| `GET /api/payments` | List pembayaran + stats |
 | `GET /api/health` | Cek Redis |
-| `POST /api/test` | Simulasi (tetap ke Redis) |
+| `POST /api/test` | Simulasi pembayaran |
 | `GET/POST /api/forwards` | Forward URL |
-| `GET/POST /api/service` | Aktif/jeda |
-| `GET /api/logs` | Debug |
+| `GET/POST /api/service` | Pause / aktifkan layanan |
+| `GET /api/logs` | Debug log |
+
+### Contoh buat order lalu auto-sukses
+
+```bash
+# 1. Buat pending
+curl -X POST https://DOMAIN/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{"amount":50000,"reference":"INV-001","expiresInMinutes":30}'
+
+# 2. Saat notifikasi DANA Rp50.000 masuk via listener,
+#    order otomatis status = success
+```
+
+---
+
+## Fitur
+
+- Parse nominal IDR (titik/koma)
+- Map package → merchant (`id.dana` → dana)
+- Filter promo / gagal / OTP
+- **Dedup** 2 menit (nominal + package)
+- **Matching order** pending → success (nominal sama, FIFO)
+- Multi-forward webhook
+- Pause layanan
+- Statistik harian + pending/success order count
+- Companion Android Listener
 
 ---
 
@@ -119,15 +98,6 @@ Android sering mematikan Notification Listener. Gunakan:
 
 ```bash
 npm install
-cp .env.example .env.local   # isi Upstash
+cp .env.example .env.local
 npm run dev
 ```
-
----
-
-## Web → App (Capacitor)
-
-Lihat catatan di [`CAPACITOR.md`](CAPACITOR.md).
-
-**Kesimpulan singkat:**  
-Listener notifikasi **harus native**. Folder `android-listener/` adalah solusi paling stabil untuk auto-verifikasi pembayaran DANA.

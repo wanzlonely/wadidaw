@@ -1,0 +1,77 @@
+import { NextRequest, NextResponse } from "next/server";
+import {
+  createOrder,
+  listOrders,
+  cancelOrder,
+} from "@/lib/store";
+import { hasRedisEnv } from "@/lib/redis";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET(req: NextRequest) {
+  if (!hasRedisEnv()) {
+    return NextResponse.json(
+      { error: "Redis not configured", orders: [] },
+      { status: 503 }
+    );
+  }
+  const status = req.nextUrl.searchParams.get("status") as
+    | "pending"
+    | "success"
+    | "expired"
+    | "cancelled"
+    | null;
+  const orders = await listOrders(status || undefined);
+  return NextResponse.json({ orders });
+}
+
+export async function POST(req: NextRequest) {
+  if (!hasRedisEnv()) {
+    return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const amount = Number(body.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return NextResponse.json(
+      { error: "amount wajib (angka > 0)" },
+      { status: 400 }
+    );
+  }
+
+  const order = await createOrder({
+    amount,
+    reference: body.reference != null ? String(body.reference) : null,
+    customerName: body.customerName != null ? String(body.customerName) : null,
+    note: body.note != null ? String(body.note) : null,
+    expiresInMinutes:
+      body.expiresInMinutes != null ? Number(body.expiresInMinutes) : 60,
+  });
+
+  return NextResponse.json({ ok: true, order }, { status: 201 });
+}
+
+export async function DELETE(req: NextRequest) {
+  if (!hasRedisEnv()) {
+    return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
+  }
+  const id = req.nextUrl.searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ error: "id required" }, { status: 400 });
+  }
+  const order = await cancelOrder(id);
+  if (!order) {
+    return NextResponse.json(
+      { error: "Order not found or not pending" },
+      { status: 404 }
+    );
+  }
+  return NextResponse.json({ ok: true, order });
+}

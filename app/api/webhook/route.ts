@@ -4,6 +4,9 @@ import {
   addLog,
   forwardPayment,
   getServiceActive,
+  isDuplicatePayment,
+  matchPendingOrder,
+  attachMatchedOrder,
 } from "@/lib/store";
 import { parsePaymentBody } from "@/lib/parse-payment";
 import { hasRedisEnv } from "@/lib/redis";
@@ -69,12 +72,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Dedup: same amount + package within ~2 menit
+    if (await isDuplicatePayment(parsed.data.amount, parsed.data.packageName)) {
+      await addLog("warn", `Duplicate skipped Rp${parsed.data.amount}`, {
+        packageName: parsed.data.packageName,
+      });
+      return NextResponse.json({
+        ok: true,
+        duplicate: true,
+        ms: Date.now() - started,
+      });
+    }
+
     const row = await addPayment(parsed.data);
+
+    // Auto-match pending order dengan nominal sama
+    const matched = await matchPendingOrder(row.amount, row.id);
+    if (matched) {
+      await attachMatchedOrder(row.id, matched.id);
+    }
+
     await forwardPayment(row);
 
     return NextResponse.json({
       ok: true,
       payment: row,
+      matchedOrder: matched,
       ms: Date.now() - started,
     });
   } catch (e) {
@@ -92,21 +115,8 @@ export async function GET() {
   return NextResponse.json({
     service: "WALZPAY webhook",
     redis: hasRedisEnv(),
-    method: "POST JSON from QRIS Hook",
-    accepts: [
-      "Simple: { amount, merchantId, rawText }",
-      "QRIS Hook: { payment.amount, notification.title, source_package }",
-    ],
+    method: "POST JSON from android-listener / QRIS Hook",
+    features: ["parse", "dedup", "match pending order", "forward"],
     secretHeaders: ["x-webhook-secret", "x-walzpay-secret"],
-    example_qris_hook: {
-      type: "qris.payment.success",
-      merchant_id: "dana",
-      source_package: "id.dana",
-      payment: { amount: 10000, currency: "IDR" },
-      notification: {
-        title: "Pembayaran berhasil",
-        text: "Rp10.000",
-      },
-    },
   });
 }

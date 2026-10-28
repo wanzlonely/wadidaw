@@ -11,6 +11,20 @@ export type PaymentEvent = {
   packageName?: string | null;
   receivedAt: string;
   forwardStatus?: "ok" | "partial" | "skip" | "error";
+  matchedOrderId?: string | null;
+};
+
+export type Order = {
+  id: string;
+  amount: number;
+  reference?: string | null;
+  customerName?: string | null;
+  note?: string | null;
+  status: "pending" | "success" | "expired" | "cancelled";
+  createdAt: string;
+  paidAt?: string | null;
+  matchedPaymentId?: string | null;
+  expiresAt?: string | null;
 };
 
 export type DebugLog = {
@@ -29,13 +43,17 @@ export type ForwardTarget = {
 };
 
 const MAX_PAYMENTS = 1000;
+const MAX_ORDERS = 500;
 const MAX_LOGS = 500;
+const DEDUP_TTL_SEC = 120;
 
 async function nextId(prefix: string) {
   const redis = getRedis();
   const n = await redis.incr(KEYS.seq);
   return `${prefix}_${n}_${Date.now()}`;
 }
+
+// ─── Logs ───────────────────────────────────────────────
 
 export async function addLog(
   level: DebugLog["level"],
@@ -65,6 +83,128 @@ export async function clearLogs() {
   await redis.del(KEYS.logs);
 }
 
+// ─── Dedup ──────────────────────────────────────────────
+
+/** Returns true if this amount was already seen recently (duplicate). */
+export async function isDuplicatePayment(
+  amount: number,
+  packageName?: string | null
+): Promise<boolean> {
+  const redis = getRedis();
+  const key = `${KEYS.dedup}:${packageName || "any"}:${amount}`;
+  const exists = await redis.get(key);
+  if (exists) return true;
+  await redis.set(key, "1", { ex: DEDUP_TTL_SEC });
+  return false;
+}
+
+// ─── Orders (pending → success matching) ────────────────
+
+async function loadOrders(): Promise<Order[]> {
+  const redis = getRedis();
+  const raw = await redis.lrange<string>(KEYS.orders, 0, MAX_ORDERS - 1);
+  return raw.map((x) => (typeof x === "string" ? JSON.parse(x) : x));
+}
+
+async function saveOrderAt(index: number, order: Order) {
+  const redis = getRedis();
+  await redis.lset(KEYS.orders, index, JSON.stringify(order));
+}
+
+export async function createOrder(input: {
+  amount: number;
+  reference?: string | null;
+  customerName?: string | null;
+  note?: string | null;
+  expiresInMinutes?: number;
+}): Promise<Order> {
+  const redis = getRedis();
+  const now = new Date();
+  const expiresAt =
+    input.expiresInMinutes && input.expiresInMinutes > 0
+      ? new Date(now.getTime() + input.expiresInMinutes * 60_000).toISOString()
+      : null;
+
+  const row: Order = {
+    id: await nextId("ord"),
+    amount: Math.round(input.amount),
+    reference: input.reference ?? null,
+    customerName: input.customerName ?? null,
+    note: input.note ?? null,
+    status: "pending",
+    createdAt: now.toISOString(),
+    paidAt: null,
+    matchedPaymentId: null,
+    expiresAt,
+  };
+
+  await redis.lpush(KEYS.orders, JSON.stringify(row));
+  await redis.ltrim(KEYS.orders, 0, MAX_ORDERS - 1);
+  await addLog("info", `Order pending Rp${row.amount}`, { id: row.id });
+  return row;
+}
+
+export async function listOrders(status?: Order["status"]): Promise<Order[]> {
+  const all = await loadOrders();
+  if (!status) return all;
+  return all.filter((o) => o.status === status);
+}
+
+export async function cancelOrder(id: string): Promise<Order | null> {
+  const redis = getRedis();
+  const raw = await redis.lrange<string>(KEYS.orders, 0, MAX_ORDERS - 1);
+  for (let i = 0; i < raw.length; i++) {
+    const item: Order =
+      typeof raw[i] === "string" ? JSON.parse(raw[i] as string) : (raw[i] as Order);
+    if (item.id === id && item.status === "pending") {
+      item.status = "cancelled";
+      await redis.lset(KEYS.orders, i, JSON.stringify(item));
+      await addLog("info", `Order cancelled ${id}`);
+      return item;
+    }
+  }
+  return null;
+}
+
+/** Match oldest pending order with exact amount. Marks it success. */
+export async function matchPendingOrder(
+  amount: number,
+  paymentId: string
+): Promise<Order | null> {
+  const redis = getRedis();
+  const raw = await redis.lrange<string>(KEYS.orders, 0, MAX_ORDERS - 1);
+  const now = Date.now();
+
+  // Prefer oldest pending (scan from end of list since we LPUSH)
+  for (let i = raw.length - 1; i >= 0; i--) {
+    const item: Order =
+      typeof raw[i] === "string" ? JSON.parse(raw[i] as string) : (raw[i] as Order);
+
+    if (item.status !== "pending") continue;
+    if (item.amount !== amount) continue;
+
+    if (item.expiresAt && new Date(item.expiresAt).getTime() < now) {
+      item.status = "expired";
+      await redis.lset(KEYS.orders, i, JSON.stringify(item));
+      continue;
+    }
+
+    item.status = "success";
+    item.paidAt = new Date().toISOString();
+    item.matchedPaymentId = paymentId;
+    await redis.lset(KEYS.orders, i, JSON.stringify(item));
+    await addLog("info", `Order matched → success ${item.id}`, {
+      orderId: item.id,
+      paymentId,
+      amount,
+    });
+    return item;
+  }
+  return null;
+}
+
+// ─── Payments ───────────────────────────────────────────
+
 export async function addPayment(
   event: Omit<PaymentEvent, "id" | "receivedAt">
 ): Promise<PaymentEvent> {
@@ -91,9 +231,27 @@ export async function updatePaymentForwardStatus(
   const redis = getRedis();
   const raw = await redis.lrange<string>(KEYS.payments, 0, 49);
   for (let i = 0; i < raw.length; i++) {
-    const item = typeof raw[i] === "string" ? JSON.parse(raw[i] as string) : raw[i];
+    const item =
+      typeof raw[i] === "string" ? JSON.parse(raw[i] as string) : raw[i];
     if (item.id === id) {
       item.forwardStatus = status;
+      await redis.lset(KEYS.payments, i, JSON.stringify(item));
+      break;
+    }
+  }
+}
+
+export async function attachMatchedOrder(
+  paymentId: string,
+  orderId: string
+) {
+  const redis = getRedis();
+  const raw = await redis.lrange<string>(KEYS.payments, 0, 49);
+  for (let i = 0; i < raw.length; i++) {
+    const item =
+      typeof raw[i] === "string" ? JSON.parse(raw[i] as string) : raw[i];
+    if (item.id === paymentId) {
+      item.matchedOrderId = orderId;
       await redis.lset(KEYS.payments, i, JSON.stringify(item));
       break;
     }
@@ -114,6 +272,7 @@ export async function clearPayments() {
 
 export async function getStats() {
   const payments = await listPayments();
+  const orders = await listOrders();
   const totalAmount = payments.reduce((s, p) => s + p.amount, 0);
   const byMerchant: Record<string, number> = {};
   for (const p of payments) {
@@ -130,8 +289,12 @@ export async function getStats() {
     todayAmount: todayPayments.reduce((s, p) => s + p.amount, 0),
     byMerchant,
     latest: payments[0] ?? null,
+    pendingOrders: orders.filter((o) => o.status === "pending").length,
+    successOrders: orders.filter((o) => o.status === "success").length,
   };
 }
+
+// ─── Forwards ───────────────────────────────────────────
 
 export async function listForwards(): Promise<ForwardTarget[]> {
   const redis = getRedis();
@@ -174,6 +337,8 @@ export async function setForwardEnabled(id: string, enabled: boolean) {
   }
 }
 
+// ─── Service flag ───────────────────────────────────────
+
 export async function getServiceActive(): Promise<boolean> {
   const redis = getRedis();
   const v = await redis.get<string | boolean>(KEYS.service);
@@ -205,8 +370,7 @@ export async function forwardPayment(payment: PaymentEvent) {
           signal: AbortSignal.timeout(8000),
         });
         if (res.ok) ok++;
-        else
-          await addLog("warn", `Forward ${t.url} → HTTP ${res.status}`);
+        else await addLog("warn", `Forward ${t.url} → HTTP ${res.status}`);
       } catch (e) {
         await addLog("error", `Forward ${t.url} error`, String(e));
       }
