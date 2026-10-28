@@ -26,7 +26,7 @@ type Forward = { id: string; url: string; enabled: boolean };
 const LS_MERCHANTS = "walzpay_merchants";
 const LS_SOUND = "walzpay_sound";
 
-export function Dashboard() {
+export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }) {
   const [active, setActive] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
   const [forwards, setForwards] = useState<Forward[]>([]);
@@ -61,9 +61,12 @@ export function Dashboard() {
         fetch("/api/health").then(async (r) => ({ ok: r.ok, data: await r.json() })),
       ]);
 
-      setRedisOk(Boolean(hRes.data?.redis && hRes.data?.ok));
+      const rok = Boolean(hRes.data?.redis && hRes.data?.ok);
+      setRedisOk(rok);
+      onRedis?.(rok);
+
       if (!pRes.ok) {
-        setErr(pRes.data?.error || "Gagal memuat payments (cek Upstash env)");
+        setErr(pRes.data?.error || "Gagal memuat data");
         return;
       }
       setErr(null);
@@ -94,8 +97,9 @@ export function Dashboard() {
       setLastCount(count);
     } catch (e) {
       setErr(String(e));
+      onRedis?.(false);
     }
-  }, [sound, lastCount]);
+  }, [sound, lastCount, onRedis]);
 
   useEffect(() => {
     refresh();
@@ -128,19 +132,21 @@ export function Dashboard() {
   }
 
   async function removeForward(id: string) {
-    await fetch(`/api/forwards?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
+    await fetch(`/api/forwards?id=${encodeURIComponent(id)}`, { method: "DELETE" });
     refresh();
   }
 
   async function testPay() {
     setBusy(true);
-    await fetch("/api/test", {
+    const res = await fetch("/api/test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ amount: 10000, merchantId: "dana" }),
     });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setErr(j.error || "Gagal kirim uji");
+    }
     setBusy(false);
     refresh();
   }
@@ -168,79 +174,43 @@ export function Dashboard() {
 
   return (
     <>
-      <section className="glass">
-        <h2>Status infrastruktur</h2>
-        <p>
-          Redis (Upstash):{" "}
-          {redisOk === null ? (
-            <span className="muted">mengecek…</span>
-          ) : redisOk ? (
-            <span className="badge">Terhubung</span>
-          ) : (
-            <span className="badge level-error">Belum / error</span>
-          )}
-        </p>
-        {err ? <p className="muted" style={{ marginTop: 8, color: "#ff8a80" }}>{err}</p> : null}
-        {!redisOk && redisOk !== null ? (
-          <p className="muted" style={{ marginTop: 8 }}>
-            Set <code>UPSTASH_REDIS_REST_URL</code> &{" "}
-            <code>UPSTASH_REDIS_REST_TOKEN</code> di Vercel, lalu redeploy.
-          </p>
-        ) : null}
-      </section>
+      {err ? (
+        <section className="glass">
+          <h2>Error</h2>
+          <p style={{ color: "var(--danger)" }}>{err}</p>
+        </section>
+      ) : null}
 
       <section className="glass">
-        <h2>Akses notifikasi (di HP)</h2>
-        <p>
-          Deteksi uang masuk dilakukan app listener di HP. WALZPAY menerima
-          webhook, parse nominal, simpan Redis, tampil di sini (~2 detik).
-        </p>
-        <code className="code">{hookPath}</code>
-        <button type="button" className="btn" onClick={copyHook}>
-          Salin URL webhook
-        </button>
+        <div className="hero-amount">
+          <p className="label">Masuk hari ini</p>
+          <p className="amount">{formatRp(stats?.todayAmount ?? 0)}</p>
+          <p className="muted" style={{ marginTop: 6 }}>
+            {stats?.todayCount ?? 0} transaksi · total semua {formatRp(stats?.totalAmount ?? 0)}
+          </p>
+        </div>
+        <hr className="divider" />
+        <div className="stats-grid">
+          <div className="stat-box">
+            <p className="label">Hari ini</p>
+            <p className="amount sm">{stats?.todayCount ?? 0}</p>
+          </div>
+          <div className="stat-box">
+            <p className="label">Semua</p>
+            <p className="amount sm">{stats?.count ?? 0}</p>
+          </div>
+        </div>
       </section>
 
       <section className="glass row">
         <div>
-          <h2>WALZPAY Aktif</h2>
-          <p>
-            {active
-              ? "Menerima event webhook → Redis"
-              : "Dijeda — webhook ditolak (503)"}
-          </p>
+          <h2 style={{ marginBottom: 4 }}>Layanan aktif</h2>
+          <p>{active ? "Menerima webhook" : "Dijeda"}</p>
         </div>
         <label className="switch">
-          <input
-            type="checkbox"
-            checked={active}
-            disabled={busy}
-            onChange={toggleService}
-          />
+          <input type="checkbox" checked={active} disabled={busy} onChange={toggleService} />
           <span className="slider" />
         </label>
-      </section>
-
-      <section className="glass">
-        <h2>Statistik hari ini</h2>
-        <div className="stats-grid">
-          <div>
-            <p className="muted">Hari ini</p>
-            <p className="amount">{stats?.todayCount ?? 0}</p>
-          </div>
-          <div>
-            <p className="muted">Nominal hari ini</p>
-            <p className="amount">{formatRp(stats?.todayAmount ?? 0)}</p>
-          </div>
-          <div>
-            <p className="muted">Total semua</p>
-            <p className="amount">{stats?.count ?? 0}</p>
-          </div>
-          <div>
-            <p className="muted">Nominal total</p>
-            <p className="amount">{formatRp(stats?.totalAmount ?? 0)}</p>
-          </div>
-        </div>
       </section>
 
       <section className="glass">
@@ -248,63 +218,58 @@ export function Dashboard() {
         {stats?.latest ? (
           <div>
             <p className="amount">{formatRp(stats.latest.amount)}</p>
-            <p className="muted">
+            <p className="muted" style={{ marginTop: 4 }}>
               {stats.latest.merchantId}
-              {stats.latest.paymentSource
-                ? ` · ${stats.latest.paymentSource}`
-                : ""}
+              {stats.latest.paymentSource ? ` · ${stats.latest.paymentSource}` : ""}
             </p>
             <p className="muted">{formatTime(stats.latest.receivedAt)}</p>
           </div>
         ) : (
-          <p className="empty">Belum ada data di Redis</p>
+          <p className="empty">Belum ada data — tekan uji atau tunggu notifikasi dari HP</p>
         )}
-        <button type="button" className="btn" disabled={busy} onClick={testPay}>
-          Kirim uji Rp10.000 ke Redis
+        <button type="button" className="btn btn-block" disabled={busy} onClick={testPay}>
+          Kirim uji Rp10.000
         </button>
       </section>
 
       <section className="glass">
-        <h2>Webhook lanjutan (forward)</h2>
-        <p>Setelah masuk Redis, teruskan ke server kasir / n8n / Discord.</p>
-        <div className="form-row">
-          <input
-            className="input"
-            placeholder="https://example.com/hook"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-          <button type="button" className="btn" disabled={busy} onClick={addForward}>
-            + Tambah
-          </button>
-        </div>
-        {forwards.length === 0 ? (
-          <p className="muted" style={{ marginTop: 10 }}>
-            Belum ada forward URL
-          </p>
-        ) : (
-          forwards.map((f) => (
-            <div key={f.id} className="list-item" style={{ marginTop: 10 }}>
-              <code className="code" style={{ flex: 1, marginTop: 0 }}>
-                {f.url}
-              </code>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => removeForward(f.id)}
-              >
-                Hapus
-              </button>
-            </div>
-          ))
-        )}
+        <h2>Webhook HP</h2>
+        <p>Tempel di QRIS Hook sebagai URL tujuan.</p>
+        <code className="code">{hookPath}</code>
+        <button type="button" className="btn btn-block" onClick={copyHook}>
+          Salin URL
+        </button>
       </section>
 
       <section className="glass">
-        <h2>Merchant (filter di app HP)</h2>
-        <p className="muted">
-          Pastikan package ini aktif di QRIS Hook. Preferensi UI disimpan lokal.
-        </p>
+        <h2>Forward URL</h2>
+        <p>Setelah ke Redis, teruskan ke kasir / n8n / Discord.</p>
+        <div className="form-row" style={{ marginTop: 8 }}>
+          <input
+            className="input"
+            placeholder="https://…"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <button type="button" className="btn" style={{ marginTop: 0 }} disabled={busy} onClick={addForward}>
+            + Tambah
+          </button>
+        </div>
+        {forwards.map((f) => (
+          <div key={f.id} className="list-item" style={{ marginTop: 10 }}>
+            <code className="code" style={{ flex: 1, marginTop: 0 }}>
+              {f.url}
+            </code>
+            <button type="button" className="btn btn-ghost" style={{ marginTop: 0 }} onClick={() => removeForward(f.id)}>
+              Hapus
+            </button>
+          </div>
+        ))}
+      </section>
+
+      <section className="glass">
+        <h2>Merchant di HP</h2>
+        <p className="muted">Aktifkan package yang sama di QRIS Hook.</p>
         {MERCHANTS.map((m) => (
           <label key={m.id} className="check-row">
             <input
@@ -313,9 +278,11 @@ export function Dashboard() {
               onChange={() => toggleMerchant(m.id)}
             />
             <span>
-              <strong>{m.name}</strong>
+              <strong style={{ color: "var(--text)" }}>{m.name}</strong>
               <br />
-              <span className="muted">{m.packages.join(", ")}</span>
+              <span className="muted" style={{ fontSize: "0.75rem" }}>
+                {m.packages.join(", ")}
+              </span>
             </span>
           </label>
         ))}
@@ -323,8 +290,8 @@ export function Dashboard() {
 
       <section className="glass row">
         <div>
-          <h2>Suara saat pembayaran baru</h2>
-          <p>Poll Redis setiap 2 detik</p>
+          <h2 style={{ marginBottom: 4 }}>Suara alert</h2>
+          <p>Saat data baru dari Redis</p>
         </div>
         <label className="switch">
           <input type="checkbox" checked={sound} onChange={toggleSound} />
