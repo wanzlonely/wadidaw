@@ -1,91 +1,97 @@
-# WALZPAY
+# WALZPAY (Web)
 
-Aplikasi Android native untuk memantau **notifikasi pembayaran QRIS** (terutama **DANA Bisnis**) dan mengirim event ke **webhook** kamu secara real-time.
+Dashboard web **Notifikasi QRIS → Webhook**, brand **WALZPAY**, style **liquid glass biru laut**.  
+Deploy ke **Vercel** (Next.js App Router).
 
-> Brand & UI: **WALZPAY** — biru laut + style liquid glass transparan  
-> Basis teknis: [suriyadi15/qrishook](https://github.com/suriyadi15/qrishook) (MIT License)
+## Batasan penting
 
----
+Browser / website **tidak bisa** membaca notifikasi Android (DANA, GoPay, dll.).  
+Itu hanya bisa dilakukan app native (NotificationListenerService).
 
-## Fitur yang direncanakan
+### Arsitektur yang dipakai
 
-- Listener notifikasi Android (NotificationListenerService)
-- Parser **DANA Bisnis** (`id.dana` / `id.dana.kasir`)
-- Forward payload pembayaran ke webhook URL
-- UI modern: gelap + liquid glass (blur / transparan)
-- Branding penuh: nama, warna, icon, string
-
----
-
-## Status saat ini
-
-| Item | Status |
-|------|--------|
-| Repo | Inisialisasi |
-| Branding (nama, warna) | Direncanakan di docs |
-| Parser DANA | Kerangka di `docs/DanaMerchantParser.kt` |
-| Source Android penuh | Belum di-import dari qrishook |
-| Sample notifikasi DANA asli | Belum ada (parser masih heuristik) |
-
----
-
-## Cara melanjutkan (butuh PC + Android Studio)
-
-### 1. Ambil source dasar
-
-```bash
-git clone https://github.com/suriyadi15/qrishook.git walzpay-temp
-cd walzpay-temp
+```
+[HP: QRIS Hook / app listener]  --POST JSON-->  [WALZPAY di Vercel]
+                                                      |
+                                              simpan + tampil riwayat
+                                              dashboard liquid glass
 ```
 
-Atau fork qrishook, lalu push ke repo ini sebagai remote `origin`.
+1. Install app listener di HP (mis. [QRIS Hook](https://github.com/suriyadi15/qrishook)).
+2. Set webhook URL ke: `https://DOMAIN-KAMU.vercel.app/api/webhook`
+3. Buka dashboard WALZPAY di browser untuk lihat pembayaran real-time / riwayat.
 
-### 2. Rebrand ke WALZPAY
+Website ini = **penerima webhook + dashboard**, bukan pengganti total app Android.
 
-- `applicationId` / `namespace` → `com.walzpay.app` (atau `id.walzpay.hook`)
-- `app_name` → **WALZPAY**
-- Ganti `colors.xml` & theme sesuai `docs/colors.xml`
-- Ganti icon launcher
-- Rename package folder Java/Kotlin
+---
 
-### 3. Tambah parser DANA
+## Fitur
 
-Salin isi `docs/DanaMerchantParser.kt` ke package merchant project, lalu daftarkan di `MerchantRegistry`.
+- `POST /api/webhook` — terima event pembayaran dari app di HP
+- Dashboard Beranda (status, URL webhook, ringkasan)
+- Halaman Riwayat pembayaran
+- UI gelap + liquid glass (Ocean Blue)
+- Penyimpanan sementara di memory (demo); siap diganti Vercel KV / DB
 
-### 4. UI liquid glass
+---
 
-Ikuti desain di `docs/UI_DESIGN.md`.
+## Stack
 
-### 5. Build APK
+- Next.js 14 (App Router)
+- TypeScript
+- CSS modules / global liquid glass
+- Deploy: Vercel
+
+---
+
+## Local development
 
 ```bash
-./gradlew assembleRelease
+npm install
+npm run dev
+```
+
+Buka [http://localhost:3000](http://localhost:3000).
+
+Test webhook:
+
+```bash
+curl -X POST http://localhost:3000/api/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"merchantId":"dana","amount":10000,"paymentSource":"DANA","rawTitle":"Pembayaran berhasil","rawText":"Rp10.000"}'
 ```
 
 ---
 
-## Warna (Ocean Blue + Liquid Glass)
+## Deploy Vercel
 
-| Token | Hex |
-|-------|-----|
-| primary | `#0077B6` |
-| primary_dark | `#023E8A` |
-| accent | `#00B4D8` |
-| bg_dark | `#0A1628` |
-| glass | `#33FFFFFF` |
-| text | `#F0F9FF` |
+1. Import repo `wanzlonely/wadidaw` di [vercel.com](https://vercel.com)
+2. Framework: Next.js (auto)
+3. Deploy
+4. Salin URL → pasang di app HP sebagai webhook
 
-Detail: lihat `docs/colors.xml`.
+Opsional env:
 
----
+```
+WEBHOOK_SECRET=ubah-jadi-rahasia
+```
 
-## Lisensi & kredit
-
-- Kode dasar: **MIT** — [suriyadi15/qrishook](https://github.com/suriyadi15/qrishook)
-- Branding & kustomisasi WALZPAY: milik pemilik repo ini
+Jika di-set, request harus kirim header `x-walzpay-secret: <nilai>`.
 
 ---
 
-## Catatan penting
+## Brand
 
-Parser DANA masih **kerangka**. Format notifikasi resmi DANA jarang dipublikasikan. Setelah ada 1–2 sample notifikasi asli (title + text dari Debug Mode), parser perlu disesuaikan agar akurat.
+| Token | Nilai |
+|-------|--------|
+| Nama | WALZPAY |
+| Primary | `#0077B6` |
+| Accent | `#00B4D8` |
+| Background | `#0A1628` |
+
+---
+
+## Kredit
+
+Ide alur notifikasi QRIS terinspirasi [suriyadi15/qrishook](https://github.com/suriyadi15/qrishook) (MIT).  
+Versi web ini fokus dashboard + API webhook.
