@@ -11,14 +11,13 @@ import { hasRedisEnv } from "@/lib/redis";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function unauthorized() {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-}
-
 function checkSecret(req: NextRequest) {
   const secret = process.env.WEBHOOK_SECRET;
   if (!secret) return true;
-  return req.headers.get("x-walzpay-secret") === secret;
+  const h =
+    req.headers.get("x-walzpay-secret") ||
+    req.headers.get("x-webhook-secret");
+  return h === secret;
 }
 
 export async function POST(req: NextRequest) {
@@ -35,8 +34,12 @@ export async function POST(req: NextRequest) {
   }
 
   if (!checkSecret(req)) {
-    await addLog("warn", "Webhook rejected: bad secret");
-    return unauthorized();
+    try {
+      await addLog("warn", "Webhook rejected: bad secret");
+    } catch {
+      /* ignore */
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -67,7 +70,6 @@ export async function POST(req: NextRequest) {
     }
 
     const row = await addPayment(parsed.data);
-    // Fire-and-forget style but await for reliability on serverless
     await forwardPayment(row);
 
     return NextResponse.json({
@@ -90,16 +92,21 @@ export async function GET() {
   return NextResponse.json({
     service: "WALZPAY webhook",
     redis: hasRedisEnv(),
-    method: "POST JSON from phone listener (QRIS Hook)",
-    headers: process.env.WEBHOOK_SECRET
-      ? { "x-walzpay-secret": "required" }
-      : undefined,
-    example: {
-      merchantId: "dana",
-      amount: 10000,
-      packageName: "id.dana",
-      rawTitle: "Pembayaran berhasil",
-      rawText: "Rp10.000",
+    method: "POST JSON from QRIS Hook",
+    accepts: [
+      "Simple: { amount, merchantId, rawText }",
+      "QRIS Hook: { payment.amount, notification.title, source_package }",
+    ],
+    secretHeaders: ["x-webhook-secret", "x-walzpay-secret"],
+    example_qris_hook: {
+      type: "qris.payment.success",
+      merchant_id: "dana",
+      source_package: "id.dana",
+      payment: { amount: 10000, currency: "IDR" },
+      notification: {
+        title: "Pembayaran berhasil",
+        text: "Rp10.000",
+      },
     },
   });
 }
