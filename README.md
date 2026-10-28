@@ -8,7 +8,7 @@ Brand liquid glass · deploy **Vercel** · data **persisten** di Redis.
 ## Cara kerja sungguhan (bukan demo memory)
 
 ```
-[App di HP: QRIS Hook]
+[App di HP: android-listener / QRIS Hook]
    mendeteksi notifikasi DANA/GoPay/…
         │  POST JSON  (cepat)
         ▼
@@ -49,19 +49,40 @@ Lokal: salin `.env.example` → `.env.local`.
 
 ---
 
-## Hubungkan HP (QRIS Hook)
+## Hubungkan HP (Android Listener — rekomendasi)
 
-1. Install [QRIS Hook](https://github.com/suriyadi15/qrishook)
-2. Aktifkan akses notifikasi + pilih merchant (DANA: `id.dana`)
-3. Webhook URL:
+Repo ini sudah dilengkapi companion app native di folder **`android-listener/`**.
+
+### Cara build APK
+
+1. Install Android Studio
+2. Buka folder `android-listener/` sebagai project
+3. Build → Build APK(s)
+4. Install APK di HP yang login **DANA Bisnis**
+5. Buka app → izinkan **Notification Access**
+6. Isi Webhook URL:
 
 ```
 https://PROJECT.vercel.app/api/webhook
 ```
 
-4. Transaksi QRIS uji → muncul di **Beranda / Riwayat** dalam hitungan detik
+7. (Opsional) isi Secret jika memakai `WEBHOOK_SECRET`
+8. Aktifkan toggle listener
 
-Payload yang diterima fleksibel: `amount` numerik **atau** teks `Rp10.000` di `rawText` / `title`.
+Lihat detail lengkap di [`android-listener/README.md`](android-listener/README.md).
+
+### Alternatif: QRIS Hook
+
+1. Install [QRIS Hook](https://github.com/suriyadi15/qrishook)
+2. Aktifkan akses notifikasi + pilih merchant (DANA: `id.dana`)
+3. Webhook URL yang sama seperti di atas
+
+### Keep-Alive (sangat disarankan)
+
+Android sering mematikan Notification Listener. Gunakan:
+
+- [Service Keeper](https://github.com/sklndev/Service-Keeper)  
+  Monitor service `com.walzpay.listener/.PaymentNotificationListener`
 
 ---
 
@@ -76,6 +97,7 @@ Payload yang diterima fleksibel: `amount` numerik **atau** teks `Rp10.000` di `r
 - Statistik harian
 - Export CSV, debug log, health check
 - PWA manifest
+- **Companion Android Listener** (folder `android-listener/`)
 
 ---
 
@@ -103,6 +125,9 @@ npm run dev
 
 ---
 
-## Web → App
+## Web → App (Capacitor)
 
-Setelah Vercel + Redis stabil, bungkus PWA/Capacitor. Listener notifikasi tetap native.
+Lihat catatan di [`CAPACITOR.md`](CAPACITOR.md).
+
+**Kesimpulan singkat:**  
+Listener notifikasi **harus native**. Folder `android-listener/` adalah solusi paling stabil untuk auto-verifikasi pembayaran DANA.
