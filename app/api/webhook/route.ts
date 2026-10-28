@@ -5,104 +5,98 @@ import {
   forwardPayment,
   getServiceActive,
 } from "@/lib/store";
+import { parsePaymentBody } from "@/lib/parse-payment";
+import { hasRedisEnv } from "@/lib/redis";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-function extractAmount(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const digits = value.replace(/\D/g, "");
-    const n = Number(digits);
-    return Number.isFinite(n) && n > 0 ? n : null;
-  }
-  return null;
+function unauthorized() {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+function checkSecret(req: NextRequest) {
+  const secret = process.env.WEBHOOK_SECRET;
+  if (!secret) return true;
+  return req.headers.get("x-walzpay-secret") === secret;
 }
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.WEBHOOK_SECRET;
-  if (secret) {
-    const header = req.headers.get("x-walzpay-secret");
-    if (header !== secret) {
-      addLog("warn", "Webhook rejected: bad secret");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const started = Date.now();
 
-  if (!getServiceActive()) {
-    addLog("warn", "Webhook ignored: service paused");
+  if (!hasRedisEnv()) {
     return NextResponse.json(
-      { error: "Service paused", ok: false },
+      {
+        error:
+          "Upstash Redis not configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.",
+      },
       { status: 503 }
     );
   }
 
-  let body: Record<string, unknown>;
+  if (!checkSecret(req)) {
+    await addLog("warn", "Webhook rejected: bad secret");
+    return unauthorized();
+  }
+
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    if (!(await getServiceActive())) {
+      await addLog("warn", "Webhook ignored: service paused");
+      return NextResponse.json(
+        { ok: false, error: "Service paused" },
+        { status: 503 }
+      );
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    await addLog("info", "Webhook received", body);
+
+    const parsed = parsePaymentBody(body);
+    if (!parsed.ok) {
+      await addLog("warn", `Parse rejected: ${parsed.error}`, body);
+      return NextResponse.json(
+        { ok: false, error: parsed.error },
+        { status: 422 }
+      );
+    }
+
+    const row = await addPayment(parsed.data);
+    // Fire-and-forget style but await for reliability on serverless
+    await forwardPayment(row);
+
+    return NextResponse.json({
+      ok: true,
+      payment: row,
+      ms: Date.now() - started,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    try {
+      await addLog("error", "Webhook handler error", msg);
+    } catch {
+      /* ignore */
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  addLog("info", "Webhook received", body);
-
-  let amount =
-    extractAmount(body.amount) ?? extractAmount(body.nominal) ?? null;
-
-  if (amount == null && typeof body.rawText === "string") {
-    const m = body.rawText.match(/rp\.?\s*[\d.]+/i);
-    if (m) amount = extractAmount(m[0]);
-  }
-  if (amount == null && typeof body.text === "string") {
-    const m = body.text.match(/rp\.?\s*[\d.]+/i);
-    if (m) amount = extractAmount(m[0]);
-  }
-
-  if (amount == null || amount <= 0) {
-    return NextResponse.json(
-      { error: "amount required (number or Rp string)" },
-      { status: 400 }
-    );
-  }
-
-  const row = addPayment({
-    merchantId: String(body.merchantId ?? body.merchant ?? "unknown"),
-    amount,
-    paymentSource:
-      body.paymentSource != null
-        ? String(body.paymentSource)
-        : body.source != null
-          ? String(body.source)
-          : null,
-    senderName: body.senderName != null ? String(body.senderName) : null,
-    rawTitle:
-      body.rawTitle != null
-        ? String(body.rawTitle)
-        : body.title != null
-          ? String(body.title)
-          : null,
-    rawText:
-      body.rawText != null
-        ? String(body.rawText)
-        : body.text != null
-          ? String(body.text)
-          : null,
-    packageName: body.packageName != null ? String(body.packageName) : null,
-  });
-
-  await forwardPayment(row);
-
-  return NextResponse.json({ ok: true, payment: row });
 }
 
 export async function GET() {
   return NextResponse.json({
     service: "WALZPAY webhook",
-    active: getServiceActive(),
-    method: "POST JSON from phone listener (e.g. QRIS Hook)",
+    redis: hasRedisEnv(),
+    method: "POST JSON from phone listener (QRIS Hook)",
+    headers: process.env.WEBHOOK_SECRET
+      ? { "x-walzpay-secret": "required" }
+      : undefined,
     example: {
       merchantId: "dana",
       amount: 10000,
-      paymentSource: "DANA",
       packageName: "id.dana",
       rawTitle: "Pembayaran berhasil",
       rawText: "Rp10.000",
