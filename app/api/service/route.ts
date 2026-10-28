@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceActive, setServiceActive } from "@/lib/store";
+import { hasRedisEnv } from "@/lib/redis";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json({ active: getServiceActive() });
+  if (!hasRedisEnv()) {
+    return NextResponse.json({ active: false, error: "Redis not configured" }, { status: 503 });
+  }
+  return NextResponse.json({ active: await getServiceActive() });
 }
 
 export async function POST(req: NextRequest) {
+  if (!hasRedisEnv()) {
+    return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
+  }
   const body = await req.json().catch(() => ({}));
-  const active = Boolean(body.active);
-  setServiceActive(active);
-  return NextResponse.json({ ok: true, active: getServiceActive() });
+  await setServiceActive(Boolean(body.active));
+  return NextResponse.json({ ok: true, active: await getServiceActive() });
 }
