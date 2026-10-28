@@ -1,97 +1,93 @@
 # WALZPAY (Web)
 
-Dashboard web **Notifikasi QRIS → Webhook**, brand **WALZPAY**, style **liquid glass biru laut**.  
-Deploy ke **Vercel** (Next.js App Router).
+Dashboard **QRIS notification → webhook** dengan UI liquid glass biru laut.  
+Deploy: **Vercel** · siap **PWA / web-to-app**.
 
-## Batasan penting
+> Website **tidak** membaca notifikasi Android. Gunakan app listener di HP (mis. [QRIS Hook](https://github.com/suriyadi15/qrishook)) yang mengirim POST ke `/api/webhook`.
 
-Browser / website **tidak bisa** membaca notifikasi Android (DANA, GoPay, dll.).  
-Itu hanya bisa dilakukan app native (NotificationListenerService).
+---
 
-### Arsitektur yang dipakai
+## Setara QRIS Hook + lebih lengkap
 
+| Fitur | QRIS Hook (app) | WALZPAY (web) |
+|--------|-----------------|---------------|
+| Listener notifikasi OS | Ya | Tidak (butuh app HP) |
+| Terima webhook / event | Kirim keluar | Ya (`/api/webhook`) |
+| Toggle aktif/pause | Ya | Ya |
+| Multi webhook forward | Terbatas | Ya |
+| Daftar merchant | Ya | Ya (panduan filter) |
+| Riwayat | Ya | Ya + filter + export CSV |
+| Debug log | Ya | Ya |
+| Statistik harian | - | Ya |
+| Simulasi pembayaran | - | Ya |
+| Suara alert browser | - | Ya |
+| PWA install | - | Ya |
+
+---
+
+## Halaman
+
+- `/` Beranda — status, stats, webhook URL, forward, merchant, simulasi
+- `/riwayat` — list, cari, filter, export CSV
+- `/debug` — log payload & error
+- `/pengaturan` — dokumentasi API & web-to-app
+
+---
+
+## API
+
+| Method | Path | Ket |
+|--------|------|-----|
+| POST | `/api/webhook` | Event dari HP |
+| GET | `/api/payments` | List + stats |
+| DELETE | `/api/payments` | Hapus riwayat |
+| POST | `/api/test` | Simulasi |
+| GET/POST/PATCH/DELETE | `/api/forwards` | Multi URL |
+| GET/POST | `/api/service` | Pause/aktif |
+| GET/DELETE | `/api/logs` | Debug |
+
+Contoh body webhook:
+
+```json
+{
+  "merchantId": "dana",
+  "amount": 10000,
+  "paymentSource": "DANA",
+  "packageName": "id.dana",
+  "rawTitle": "Pembayaran berhasil",
+  "rawText": "Rp10.000"
+}
 ```
-[HP: QRIS Hook / app listener]  --POST JSON-->  [WALZPAY di Vercel]
-                                                      |
-                                              simpan + tampil riwayat
-                                              dashboard liquid glass
-```
 
-1. Install app listener di HP (mis. [QRIS Hook](https://github.com/suriyadi15/qrishook)).
-2. Set webhook URL ke: `https://DOMAIN-KAMU.vercel.app/api/webhook`
-3. Buka dashboard WALZPAY di browser untuk lihat pembayaran real-time / riwayat.
-
-Website ini = **penerima webhook + dashboard**, bukan pengganti total app Android.
+Opsional env: `WEBHOOK_SECRET` + header `x-walzpay-secret`.
 
 ---
 
-## Fitur
-
-- `POST /api/webhook` — terima event pembayaran dari app di HP
-- Dashboard Beranda (status, URL webhook, ringkasan)
-- Halaman Riwayat pembayaran
-- UI gelap + liquid glass (Ocean Blue)
-- Penyimpanan sementara di memory (demo); siap diganti Vercel KV / DB
-
----
-
-## Stack
-
-- Next.js 14 (App Router)
-- TypeScript
-- CSS modules / global liquid glass
-- Deploy: Vercel
-
----
-
-## Local development
+## Local
 
 ```bash
 npm install
 npm run dev
 ```
 
-Buka [http://localhost:3000](http://localhost:3000).
-
-Test webhook:
-
-```bash
-curl -X POST http://localhost:3000/api/webhook \
-  -H "Content-Type: application/json" \
-  -d '{"merchantId":"dana","amount":10000,"paymentSource":"DANA","rawTitle":"Pembayaran berhasil","rawText":"Rp10.000"}'
-```
-
----
-
 ## Deploy Vercel
 
-1. Import repo `wanzlonely/wadidaw` di [vercel.com](https://vercel.com)
-2. Framework: Next.js (auto)
-3. Deploy
-4. Salin URL → pasang di app HP sebagai webhook
-
-Opsional env:
-
-```
-WEBHOOK_SECRET=ubah-jadi-rahasia
-```
-
-Jika di-set, request harus kirim header `x-walzpay-secret: <nilai>`.
+1. Import `wanzlonely/wadidaw`
+2. Deploy
+3. Di QRIS Hook isi: `https://PROJECT.vercel.app/api/webhook`
 
 ---
 
-## Brand
+## Web → App
 
-| Token | Nilai |
-|-------|--------|
-| Nama | WALZPAY |
-| Primary | `#0077B6` |
-| Accent | `#00B4D8` |
-| Background | `#0A1628` |
+1. Deploy stabil di Vercel  
+2. Install PWA dari browser, atau bungkus dengan Capacitor/TWA  
+3. Listener notifikasi tetap app native (atau plugin khusus)
 
 ---
 
-## Kredit
+## Catatan data
 
-Ide alur notifikasi QRIS terinspirasi [suriyadi15/qrishook](https://github.com/suriyadi15/qrishook) (MIT).  
-Versi web ini fokus dashboard + API webhook.
+Store in-memory (demo). Untuk produksi: Vercel KV / database.
+
+Inspirasi alur: suriyadi15/qrishook (MIT).
