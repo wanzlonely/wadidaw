@@ -19,16 +19,22 @@ export function RiwayatClient() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [q, setQ] = useState("");
   const [merchant, setMerchant] = useState("all");
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     const res = await fetch("/api/payments");
     const data = await res.json();
+    if (!res.ok) {
+      setError(data.error || "Gagal load");
+      return;
+    }
+    setError(null);
     setPayments(data.payments ?? []);
   }
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 4000);
+    const t = setInterval(load, 2000);
     return () => clearInterval(t);
   }, []);
 
@@ -61,13 +67,19 @@ export function RiwayatClient() {
   }
 
   async function clearAll() {
-    if (!confirm("Hapus semua riwayat di server?")) return;
+    if (!confirm("Hapus semua riwayat di Redis?")) return;
     await fetch("/api/payments", { method: "DELETE" });
     load();
   }
 
   return (
     <>
+      {error ? (
+        <section className="glass">
+          <p className="muted" style={{ color: "#ff8a80" }}>{error}</p>
+        </section>
+      ) : null}
+
       <section className="glass">
         <div className="form-row">
           <input
@@ -101,7 +113,7 @@ export function RiwayatClient() {
 
       {filtered.length === 0 ? (
         <section className="glass">
-          <p className="empty">Tidak ada data</p>
+          <p className="empty">Tidak ada data di Redis</p>
         </section>
       ) : (
         filtered.map((p) => (
