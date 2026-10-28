@@ -6,9 +6,9 @@ export const runtime = "nodejs";
 function extractAmount(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const digits = value.replace(/[^[\d]/g, "");
+    const digits = value.replace(/\D/g, "");
     const n = Number(digits);
-    return Number.isFinite(n) ? n : null;
+    return Number.isFinite(n) && n > 0 ? n : null;
   }
   return null;
 }
@@ -29,14 +29,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const amount =
-    extractAmount(body.amount) ??
-    extractAmount(body.nominal) ??
-    extractAmount(
-      typeof body.rawText === "string"
-        ? body.rawText.match(/rp\.?\s*[\d.]+/i)?.[0]
-        : null
-    );
+  let amount =
+    extractAmount(body.amount) ?? extractAmount(body.nominal) ?? null;
+
+  if (amount == null && typeof body.rawText === "string") {
+    const m = body.rawText.match(/rp\.?\s*[\d.]+/i);
+    if (m) amount = extractAmount(m[0]);
+  }
 
   if (amount == null || amount <= 0) {
     return NextResponse.json(
