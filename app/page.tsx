@@ -1,13 +1,15 @@
-import { Nav } from "@/components/Nav";
+"use client";
+
+import { useState } from "react";
+import { Shell } from "@/components/Shell";
 import { Dashboard } from "@/components/Dashboard";
 
 export default function HomePage() {
+  const [redisOk, setRedisOk] = useState<boolean | null>(null);
+
   return (
-    <main className="shell">
-      <div className="logo">WALZPAY</div>
-      <p className="tagline">Notifikasi QRIS → Webhook · lebih lengkap dari app listener</p>
-      <Nav active="/" />
-      <Dashboard />
-    </main>
+    <Shell active="/" redisOk={redisOk} subtitle="Dashboard pembayaran QRIS">
+      <Dashboard onRedis={setRedisOk} />
+    </Shell>
   );
 }
