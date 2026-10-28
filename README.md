@@ -1,65 +1,95 @@
-# WALZPAY (Web)
+# WALZPAY
 
-Dashboard **QRIS notification → webhook** dengan UI liquid glass biru laut.  
-Deploy: **Vercel** · siap **PWA / web-to-app**.
-
-> Website **tidak** membaca notifikasi Android. Gunakan app listener di HP (mis. [QRIS Hook](https://github.com/suriyadi15/qrishook)) yang mengirim POST ke `/api/webhook`.
+Dashboard produksi **notifikasi QRIS → webhook → Upstash Redis → UI**.  
+Brand liquid glass · deploy **Vercel** · data **persisten** di Redis.
 
 ---
 
-## Setara QRIS Hook + lebih lengkap
+## Cara kerja sungguhan (bukan demo memory)
 
-| Fitur | QRIS Hook (app) | WALZPAY (web) |
-|--------|-----------------|---------------|
-| Listener notifikasi OS | Ya | Tidak (butuh app HP) |
-| Terima webhook / event | Kirim keluar | Ya (`/api/webhook`) |
-| Toggle aktif/pause | Ya | Ya |
-| Multi webhook forward | Terbatas | Ya |
-| Daftar merchant | Ya | Ya (panduan filter) |
-| Riwayat | Ya | Ya + filter + export CSV |
-| Debug log | Ya | Ya |
-| Statistik harian | - | Ya |
-| Simulasi pembayaran | - | Ya |
-| Suara alert browser | - | Ya |
-| PWA install | - | Ya |
-
----
-
-## Halaman
-
-- `/` Beranda — status, stats, webhook URL, forward, merchant, simulasi
-- `/riwayat` — list, cari, filter, export CSV
-- `/debug` — log payload & error
-- `/pengaturan` — dokumentasi API & web-to-app
-
----
-
-## API
-
-| Method | Path | Ket |
-|--------|------|-----|
-| POST | `/api/webhook` | Event dari HP |
-| GET | `/api/payments` | List + stats |
-| DELETE | `/api/payments` | Hapus riwayat |
-| POST | `/api/test` | Simulasi |
-| GET/POST/PATCH/DELETE | `/api/forwards` | Multi URL |
-| GET/POST | `/api/service` | Pause/aktif |
-| GET/DELETE | `/api/logs` | Debug |
-
-Contoh body webhook:
-
-```json
-{
-  "merchantId": "dana",
-  "amount": 10000,
-  "paymentSource": "DANA",
-  "packageName": "id.dana",
-  "rawTitle": "Pembayaran berhasil",
-  "rawText": "Rp10.000"
-}
+```
+[App di HP: QRIS Hook]
+   mendeteksi notifikasi DANA/GoPay/…
+        │  POST JSON  (cepat)
+        ▼
+[POST /api/webhook]  ← parse akurat (amount + merchant)
+        │
+        ▼
+[Upstash Redis]  ← simpan payment + log
+        │
+        ├── dashboard polling 2–4 dtk
+        └── opsional forward ke URL lain
 ```
 
-Opsional env: `WEBHOOK_SECRET` + header `x-walzpay-secret`.
+**Penting:** Website tidak bisa membaca notifikasi Android. Deteksi “uang masuk” terjadi di **app listener HP**. WALZPAY menyimpan, memvalidasi, menampilkan, dan meneruskan secara **real** lewat Redis.
+
+Akurasi deteksi = kualitas parser di HP **+** parser server (`lib/parse-payment.ts`).
+
+---
+
+## Setup Upstash (wajib)
+
+1. Buka [console.upstash.com](https://console.upstash.com) → **Create Database** (Redis)
+2. Tab **REST API** → salin:
+   - `UPSTASH_REDIS_REST_URL`
+   - `UPSTASH_REDIS_REST_TOKEN`
+3. Di **Vercel** → Project → Settings → Environment Variables → paste keduanya
+4. Redeploy
+5. Cek: `https://DOMAIN/api/health` → harus `{ "ok": true, "redis": true }`
+
+Opsional:
+
+```
+WEBHOOK_SECRET=rahasia-anda
+```
+
+Jika di-set, app HP harus kirim header `x-walzpay-secret`.
+
+Lokal: salin `.env.example` → `.env.local`.
+
+---
+
+## Hubungkan HP (QRIS Hook)
+
+1. Install [QRIS Hook](https://github.com/suriyadi15/qrishook)
+2. Aktifkan akses notifikasi + pilih merchant (DANA: `id.dana`)
+3. Webhook URL:
+
+```
+https://PROJECT.vercel.app/api/webhook
+```
+
+4. Transaksi QRIS uji → muncul di **Beranda / Riwayat** dalam hitungan detik
+
+Payload yang diterima fleksibel: `amount` numerik **atau** teks `Rp10.000` di `rawText` / `title`.
+
+---
+
+## Fitur produksi
+
+- Simpan payment & log di **Upstash Redis** (tahan serverless)
+- Parse nominal IDR (titik ribuan, koma desimal)
+- Map package → merchant (`id.dana` → dana, dll.)
+- Filter notifikasi gagal/promo (heuristik)
+- Multi-forward webhook
+- Pause layanan
+- Statistik harian
+- Export CSV, debug log, health check
+- PWA manifest
+
+---
+
+## API ringkas
+
+| Endpoint | Fungsi |
+|----------|--------|
+| `POST /api/webhook` | Terima event HP → Redis |
+| `GET /api/payments` | List + stats |
+| `GET /api/health` | Cek Redis |
+| `POST /api/test` | Simulasi (tetap ke Redis) |
+| `GET/POST /api/forwards` | Forward URL |
+| `GET/POST /api/service` | Aktif/jeda |
+| `GET /api/logs` | Debug |
 
 ---
 
@@ -67,27 +97,12 @@ Opsional env: `WEBHOOK_SECRET` + header `x-walzpay-secret`.
 
 ```bash
 npm install
+cp .env.example .env.local   # isi Upstash
 npm run dev
 ```
-
-## Deploy Vercel
-
-1. Import `wanzlonely/wadidaw`
-2. Deploy
-3. Di QRIS Hook isi: `https://PROJECT.vercel.app/api/webhook`
 
 ---
 
 ## Web → App
 
-1. Deploy stabil di Vercel  
-2. Install PWA dari browser, atau bungkus dengan Capacitor/TWA  
-3. Listener notifikasi tetap app native (atau plugin khusus)
-
----
-
-## Catatan data
-
-Store in-memory (demo). Untuk produksi: Vercel KV / database.
-
-Inspirasi alur: suriyadi15/qrishook (MIT).
+Setelah Vercel + Redis stabil, bungkus PWA/Capacitor. Listener notifikasi tetap native.
