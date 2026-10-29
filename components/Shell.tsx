@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Nav } from "./Nav";
+import { BubbleToasts } from "./BubbleToasts";
 import { apiFetch, setStoredToken } from "@/lib/api";
 
 /**
@@ -42,6 +43,11 @@ export function Shell({
         const d = await r.json().catch(() => ({}));
         if (!r.ok || !d.authenticated) {
           setStoredToken(null);
+          try {
+            localStorage.removeItem("walzpay_token");
+          } catch {
+            /* ignore */
+          }
           window.location.replace("/login");
           return;
         }
@@ -74,13 +80,14 @@ export function Shell({
 
   return (
     <main className="shell">
+      <BubbleToasts />
       <header className="topbar">
         <div className="brand">
           <div className="logo logo-live" aria-label="WALZPAY">
             <span className="logo-text">WALZPAY</span>
             <span className="logo-shine" aria-hidden />
           </div>
-          <p className="tagline">{subtitle ?? "Pembayaran otomatis"}</p>
+          {subtitle ? <p className="tagline">{subtitle}</p> : null}
         </div>
         <div className="topbar-actions">
           {redisOk !== undefined ? (
