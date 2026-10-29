@@ -28,6 +28,7 @@ class MainActivity : AppCompatActivity() {
         "com.gojek.gopaymerchant" to "GoPay Merchant",
         "com.gojek.app" to "Gojek",
         "ovo.id" to "OVO",
+        "com.ovo.id" to "OVO",
         "com.shopee.id" to "ShopeePay",
         "com.telkom.mwallet" to "LinkAja",
         "com.bca" to "BCA Mobile",
@@ -46,8 +47,9 @@ class MainActivity : AppCompatActivity() {
 
         val prefs = getSharedPreferences("walzpay", Context.MODE_PRIVATE)
 
-        val defaultUrl = "https://wadidaw-zeta.vercel.app/api/webhook"
+        val defaultUrl = "https://walzpaynew.vercel.app/api/webhook"
         binding.etWebhookUrl.setText(prefs.getString("webhook_url", defaultUrl))
+        binding.etApiKey.setText(prefs.getString("api_key", ""))
         binding.etSecret.setText(prefs.getString("webhook_secret", ""))
         binding.switchEnabled.isChecked = prefs.getBoolean("listener_enabled", false)
 
@@ -74,6 +76,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnSave.setOnClickListener {
             val url = binding.etWebhookUrl.text.toString().trim()
+            val apiKey = binding.etApiKey.text.toString().trim()
             val secret = binding.etSecret.text.toString().trim()
             val enabled = binding.switchEnabled.isChecked
 
@@ -81,9 +84,18 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Isi Webhook URL dulu", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+            if (enabled && apiKey.isEmpty()) {
+                Toast.makeText(
+                    this,
+                    "API Key wajib — salin dari website Setel",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@setOnClickListener
+            }
 
             prefs.edit()
                 .putString("webhook_url", url)
+                .putString("api_key", apiKey)
                 .putString("webhook_secret", secret)
                 .putBoolean("listener_enabled", enabled)
                 .apply()
@@ -95,7 +107,7 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     startService(i)
                 }
-                AppLog.append(this, "Listener ON \u00b7 FG service start")
+                AppLog.append(this, "Listener ON · FG service start")
             } else {
                 stopService(Intent(this, KeepAliveService::class.java))
                 AppLog.append(this, "Listener OFF")
@@ -116,10 +128,10 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("walzpay", Context.MODE_PRIVATE)
         val sel = prefs.getStringSet("selected_packages", null)
         binding.tvSelectedPackages.text = if (sel.isNullOrEmpty()) {
-            "Default: DANA, GoPay, OVO, Shopee, WA\u2026"
+            "Default: DANA, GoPay, OVO, Shopee, WA…"
         } else {
             "Terpilih ${sel.size} aplikasi: " + sel.take(4).joinToString(", ") +
-                if (sel.size > 4) "\u2026" else ""
+                if (sel.size > 4) "…" else ""
         }
     }
 
@@ -162,7 +174,7 @@ class MainActivity : AppCompatActivity() {
         builder.setTitle("Pilih sumber notifikasi")
 
         val search = EditText(this).apply {
-            hint = "Cari aplikasi\u2026"
+            hint = "Cari aplikasi…"
             setPadding(48, 24, 48, 24)
         }
         builder.setView(search)
@@ -190,28 +202,22 @@ class MainActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                val q = s?.toString()?.trim()?.lowercase() ?: ""
-                val listView = dialog.listView ?: return
-                for (i in packages.indices) {
-                    val match = q.isEmpty() ||
-                        labels[i].lowercase().contains(q) ||
-                        packages[i].lowercase().contains(q)
-                }
+                // list filter optional — selection state stays in `current`
             }
         })
     }
 
     private fun refreshUi() {
         binding.tvPermissionStatus.text = if (isNotificationServiceEnabled()) {
-            "\u2705 Akses notifikasi: AKTIF"
+            "✅ Akses notifikasi: AKTIF"
         } else {
-            "\u274c Akses notifikasi: belum diizinkan"
+            "❌ Akses notifikasi: belum diizinkan"
         }
 
         binding.tvBatteryStatus.text = if (isIgnoringBattery()) {
-            "\u2705 Baterai: tanpa optimasi"
+            "✅ Baterai: tanpa optimasi"
         } else {
-            "\u26a0\ufe0f Baterai: masih dioptimasi sistem"
+            "⚠️ Baterai: masih dioptimasi sistem"
         }
 
         binding.tvLogs.text = AppLog.read(this)
