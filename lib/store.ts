@@ -17,9 +17,13 @@ export type PaymentEvent = {
 
 export type Order = {
   id: string;
+  /** Nominal dasar yang diminta merchant (tanpa kode unik) */
   amount: number;
+  /** Kode unik 3 digit (100–999) untuk anti-collision */
   uniqueCode: number;
+  /** Nominal yang harus ditransfer pelanggan = amount + uniqueCode + adminFee */
   totalAmount: number;
+  /** Token publik untuk payment link /pay/[token] */
   token: string;
   reference?: string | null;
   customerName?: string | null;
@@ -29,9 +33,13 @@ export type Order = {
   paidAt?: string | null;
   matchedPaymentId?: string | null;
   expiresAt?: string | null;
+  /** Mode: dynamic = pakai unique code; static = amount apa adanya (legacy) */
   mode: "dynamic" | "static";
+  /** ID template QRIS statis yang dipakai */
   qrisStaticId?: string | null;
+  /** Payload QRIS dinamis (amount sudah di-inject) */
   dynamicQris?: string | null;
+  /** Biaya admin yang digabung ke totalAmount */
   adminFee?: number;
 };
 
@@ -50,11 +58,24 @@ export type ForwardTarget = {
   createdAt: string;
 };
 
+/** Template QRIS statis yang di-upload merchant (max 3) */
+export type StaticQris = {
+  id: string;
+  label: string;
+  qrisString: string;
+  merchantName: string;
+  merchantCity: string;
+  /** Package Android untuk filter notifikasi, mis. id.dana */
+  packageHint?: string | null;
+  createdAt: string;
+};
+
 const MAX_PAYMENTS = 1000;
 const MAX_ORDERS = 500;
 const MAX_LOGS = 500;
 const DEDUP_TTL_SEC = 120;
 
+/** Upstash may return string or already-parsed object from lrange. */
 function parseRow<T>(x: unknown): T {
   if (typeof x === "string") return JSON.parse(x) as T;
   return x as T;
@@ -74,6 +95,8 @@ function randomToken(): string {
   }
   return s;
 }
+
+// ─── Logs ───────────────────────────────────────────────
 
 export async function addLog(
   level: DebugLog["level"],
@@ -103,6 +126,8 @@ export async function clearLogs() {
   await redis.del(KEYS.logs);
 }
 
+// ─── Dedup ──────────────────────────────────────────────
+
 export async function isDuplicatePayment(
   amount: number,
   packageName?: string | null
@@ -115,11 +140,20 @@ export async function isDuplicatePayment(
   return false;
 }
 
+// ─── Orders ─────────────────────────────────────────────
+
 async function loadOrders(): Promise<Order[]> {
   const redis = getRedis();
   const raw = await redis.lrange(KEYS.orders, 0, MAX_ORDERS - 1);
   return raw.map((x) => {
-    const o = parseRow<Order & { uniqueCode?: number; totalAmount?: number; token?: string; mode?: string }>(x);
+    const o = parseRow<
+      Order & {
+        uniqueCode?: number;
+        totalAmount?: number;
+        token?: string;
+        mode?: string;
+      }
+    >(x);
     if (o.uniqueCode == null) {
       o.uniqueCode = 0;
       o.totalAmount = o.amount;
@@ -131,16 +165,44 @@ async function loadOrders(): Promise<Order[]> {
   });
 }
 
-async function takenUniqueCodes(): Promise<Set<number>> {
+/**
+ * Smart anti-collision: track pending totalAmounts (base+code+admin).
+ * Codes may reuse across different bases; only the final total must be unique.
+ */
+async function takenTotalsAndCodes(): Promise<{
+  totals: Set<number>;
+  codes: Set<number>;
+}> {
   const orders = await loadOrders();
   const now = Date.now();
-  const taken = new Set<number>();
+  const totals = new Set<number>();
+  const codes = new Set<number>();
   for (const o of orders) {
     if (o.status !== "pending") continue;
     if (o.expiresAt && new Date(o.expiresAt).getTime() < now) continue;
-    if (o.uniqueCode >= 100 && o.uniqueCode <= 999) taken.add(o.uniqueCode);
+    const t = o.totalAmount != null ? o.totalAmount : o.amount;
+    totals.add(t);
+    if (o.uniqueCode >= 100 && o.uniqueCode <= 999) codes.add(o.uniqueCode);
   }
-  return taken;
+  return { totals, codes };
+}
+
+/** Mark expired pending orders (lazy sweep on create). */
+export async function sweepExpiredOrders(): Promise<number> {
+  const redis = getRedis();
+  const raw = await redis.lrange(KEYS.orders, 0, MAX_ORDERS - 1);
+  const now = Date.now();
+  let n = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const item = parseRow<Order>(raw[i]);
+    if (item.status !== "pending") continue;
+    if (!item.expiresAt) continue;
+    if (new Date(item.expiresAt).getTime() >= now) continue;
+    item.status = "expired";
+    await redis.lset(KEYS.orders, i, JSON.stringify(item));
+    n++;
+  }
+  return n;
 }
 
 export async function createOrder(input: {
@@ -148,8 +210,11 @@ export async function createOrder(input: {
   reference?: string | null;
   customerName?: string | null;
   note?: string | null;
+  /** default 30 menit */
   expiresInMinutes?: number;
+  /** default true = unique code anti-collision */
   dynamic?: boolean;
+  /** Biaya admin (Rp) digabung ke totalAmount */
   adminFee?: number;
 }): Promise<Order> {
   const redis = getRedis();
@@ -160,6 +225,8 @@ export async function createOrder(input: {
       : 30;
   const expiresAt = new Date(now.getTime() + expMin * 60_000).toISOString();
 
+  await sweepExpiredOrders();
+
   const base = Math.round(input.amount);
   const useDynamic = input.dynamic !== false;
   const adminFee = Math.max(0, Math.round(input.adminFee ?? 0));
@@ -169,9 +236,20 @@ export async function createOrder(input: {
   let mode: Order["mode"] = "static";
 
   if (useDynamic) {
-    const taken = await takenUniqueCodes();
-    uniqueCode = allocateUniqueCode(taken);
-    totalAmount = buildTotalAmount(base, uniqueCode) + adminFee;
+    const { totals, codes } = await takenTotalsAndCodes();
+    let attempts = 0;
+    while (attempts < 250) {
+      uniqueCode = allocateUniqueCode(codes);
+      totalAmount = buildTotalAmount(base, uniqueCode) + adminFee;
+      if (!totals.has(totalAmount)) break;
+      codes.add(uniqueCode);
+      attempts++;
+    }
+    if (totals.has(totalAmount)) {
+      throw new Error(
+        "Tidak bisa alokasi nominal unik. Tunggu order expired atau ubah nominal."
+      );
+    }
     mode = "dynamic";
   }
 
@@ -198,7 +276,7 @@ export async function createOrder(input: {
   await addLog(
     "info",
     mode === "dynamic"
-      ? `Order dynamic pending base Rp${row.amount} +kode ${row.uniqueCode} +adm ${adminFee} → bayar Rp${row.totalAmount}`
+      ? `Order dynamic pending base Rp${row.amount} → bayar Rp${row.totalAmount} (kode ${row.uniqueCode})`
       : `Order static pending Rp${row.amount}`,
     { id: row.id, token: row.token, totalAmount: row.totalAmount, adminFee }
   );
@@ -236,6 +314,11 @@ export async function cancelOrder(id: string): Promise<Order | null> {
   return null;
 }
 
+/**
+ * Match incoming payment amount against pending orders.
+ * Dynamic orders match on totalAmount; static (legacy) on amount.
+ * FIFO: oldest pending first.
+ */
 export async function matchPendingOrder(
   paymentAmount: number,
   paymentId: string
@@ -245,12 +328,13 @@ export async function matchPendingOrder(
   const now = Date.now();
 
   for (let i = raw.length - 1; i >= 0; i--) {
-    const item = parseRow<Order & { totalAmount?: number; uniqueCode?: number; mode?: string }>(raw[i]);
+    const item = parseRow<
+      Order & { totalAmount?: number; uniqueCode?: number; mode?: string }
+    >(raw[i]);
 
     if (item.status !== "pending") continue;
 
-    const total =
-      item.totalAmount != null ? item.totalAmount : item.amount;
+    const total = item.totalAmount != null ? item.totalAmount : item.amount;
     const target =
       item.mode === "static" || (item.uniqueCode ?? 0) === 0
         ? item.amount
@@ -292,6 +376,8 @@ export async function matchPendingOrder(
   }
   return null;
 }
+
+// ─── Payments ───────────────────────────────────────────
 
 export async function addPayment(
   event: Omit<PaymentEvent, "id" | "receivedAt">
@@ -411,6 +497,8 @@ export async function getLiveSnapshot() {
     stats: await getStats(),
   };
 }
+
+// ─── Forwards ───────────────────────────────────────────
 
 export async function listForwards(): Promise<ForwardTarget[]> {
   const redis = getRedis();
