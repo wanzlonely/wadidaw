@@ -7,7 +7,10 @@ import {
   getUserById,
   enableA2f,
   disableA2f,
-  scoreHumanBehavior,
+  changePassword,
+  createCaptcha,
+  solveCaptcha,
+  verifyCaptchaToken,
 } from "@/lib/auth";
 import { hasRedisEnv } from "@/lib/redis";
 
@@ -28,21 +31,25 @@ export async function POST(req: NextRequest) {
 
   const action = String(body.action || "");
 
-  // Verifikasi perilaku manusia (anti-bot sederhana berbasis sinyal)
+  if (action === "captcha_create") {
+    const c = await createCaptcha();
+    return NextResponse.json({ ok: true, ...c });
+  }
+
+  if (action === "captcha_solve") {
+    const result = await solveCaptcha(String(body.id || ""));
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    return NextResponse.json({ ok: true, captchaToken: result.token });
+  }
+
   if (action === "register" || action === "login") {
-    const signals = (body.signals as {
-      moveCount?: number;
-      keyCount?: number;
-      durationMs?: number;
-      focusEvents?: number;
-    }) || {};
-    const { human, score } = scoreHumanBehavior(signals);
-    if (!human) {
+    const captchaToken = String(body.captchaToken || "");
+    const okCap = await verifyCaptchaToken(captchaToken);
+    if (!okCap) {
       return NextResponse.json(
-        {
-          error: "Verifikasi gagal. Gerakkan mouse / ketik dengan natural lalu coba lagi.",
-          score,
-        },
+        { error: "Selesaikan verifikasi captcha terlebih dahulu" },
         { status: 403 }
       );
     }
@@ -72,7 +79,6 @@ export async function POST(req: NextRequest) {
       ok: true,
       token: result.session.token,
       needA2f: result.needA2f,
-      // OTP hanya untuk demo tanpa gateway SMS/email
       otpPreview: result.otpPreview ?? null,
       email: result.session.email,
     });
@@ -84,6 +90,23 @@ export async function POST(req: NextRequest) {
     const result = await verifyA2f(token, code);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 401 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "change_password") {
+    const token = String(body.token || "");
+    const session = await getSession(token);
+    if (!session || !session.a2fVerified) {
+      return NextResponse.json({ error: "Sesi tidak valid" }, { status: 401 });
+    }
+    const result = await changePassword(
+      session.userId,
+      String(body.oldPassword || ""),
+      String(body.newPassword || "")
+    );
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
     }
     return NextResponse.json({ ok: true });
   }
@@ -121,10 +144,16 @@ export async function POST(req: NextRequest) {
         email: user.email,
         displayName: user.displayName,
         a2fEnabled: user.a2fEnabled,
+        hasPassword: true,
         createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       },
       a2fVerified: session.a2fVerified,
     });
+  }
+
+  if (action === "logout") {
+    return NextResponse.json({ ok: true });
   }
 
   return NextResponse.json({ error: "action tidak dikenal" }, { status: 400 });
