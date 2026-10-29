@@ -13,6 +13,7 @@ declare global {
       openPackagePicker: () => void;
       toggleListener: () => void;
       saveListener: () => void;
+      requestPostNotifications: () => void;
       setApiKey: (key: string) => void;
       setWebhookUrl: (url: string) => void;
       setWebhookSecret: (secret: string) => void;
@@ -37,6 +38,7 @@ export type AndroidStatus = {
   listener: boolean;
   shizuku: string;
   packages: number;
+  push?: boolean;
 };
 
 export function getAndroidStatus(): AndroidStatus | null {
@@ -55,7 +57,7 @@ export function androidCall(
   const api = typeof window !== "undefined" ? window.WalzAndroid : undefined;
   if (!api || typeof api[fn] !== "function") return false;
   try {
-    // @ts-expect-error dynamic
+    // @ts-expect-error dynamic call
     api[fn]();
     return true;
   } catch {
