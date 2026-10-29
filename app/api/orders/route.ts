@@ -3,8 +3,10 @@ import { createOrder, listOrders, cancelOrder, sweepExpiredOrders } from "@/lib/
 import { getStaticQris } from "@/lib/static-qris";
 import { convertStaticToDynamic, computeAdminFee } from "@/lib/qris-convert";
 import { getSettingsForUser } from "@/lib/settings";
-import { getRedis, hasRedisEnv, KEYS } from "@/lib/redis";
+import { getRedis, hasRedisEnv } from "@/lib/redis";
 import { resolveSession } from "@/lib/auth";
+import { setTenant } from "@/lib/tenant";
+import { K } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,13 +22,14 @@ export async function GET(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: "Belum login", orders: [] }, { status: 401 });
   }
+  setTenant(session.userId);
   const status = req.nextUrl.searchParams.get("status") as
     | "pending"
     | "success"
     | "expired"
     | "cancelled"
     | null;
-  const orders = await listOrders(status || undefined, session.userId);
+  const orders = await listOrders(status || undefined);
   return NextResponse.json({ orders });
 }
 
@@ -39,6 +42,7 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: "Belum login" }, { status: 401 });
   }
+  setTenant(session.userId);
 
   let body: Record<string, unknown>;
   try {
@@ -88,7 +92,6 @@ export async function POST(req: NextRequest) {
       adminFee,
       minFee: settings.feeMin,
       maxFee: settings.feeMax,
-      userId: session.userId,
     });
 
     const qrisStaticId =
@@ -107,14 +110,14 @@ export async function POST(req: NextRequest) {
         null
       );
       const redis = getRedis();
-      const raw = await redis.lrange(KEYS.orders, 0, 49);
+      const raw = await redis.lrange(K().orders, 0, 49);
       for (let i = 0; i < raw.length; i++) {
         const item =
           typeof raw[i] === "string" ? JSON.parse(raw[i] as string) : raw[i];
         if (item.id === order.id) {
           item.qrisStaticId = qrisStaticId;
           item.dynamicQris = dynamicQris;
-          await redis.lset(KEYS.orders, i, JSON.stringify(item));
+          await redis.lset(K().orders, i, JSON.stringify(item));
           (order as { qrisStaticId?: string }).qrisStaticId = qrisStaticId;
           (order as { dynamicQris?: string }).dynamicQris = dynamicQris;
           break;
@@ -135,6 +138,10 @@ export async function DELETE(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
   }
+  // Scope to the logged-in user when possible
+  const session = await resolveSession(req);
+  if (session) setTenant(session.userId);
+
   if (req.nextUrl.searchParams.get("all") === "1" || req.nextUrl.searchParams.get("purge") === "1") {
     await sweepExpiredOrders();
     return NextResponse.json({ ok: true, note: "sweep expired only" });
