@@ -152,6 +152,8 @@ export default function LoginPage() {
     [needOtp, mode]
   );
 
+  const eyeIcon = showPw ? "🙉" : "🙈";
+
   return (
     <div className="auth-shell">
       <div className="auth-logo">
@@ -249,7 +251,7 @@ export default function LoginPage() {
                     aria-label={showPw ? "Sembunyikan password" : "Tampilkan password"}
                     tabIndex={-1}
                   >
-                    {showPw ? "🙈" : "👁"}
+                    {eyeIcon}
                   </button>
                 </div>
               </label>
@@ -275,7 +277,7 @@ export default function LoginPage() {
                       aria-label={showPw ? "Sembunyikan password" : "Tampilkan password"}
                       tabIndex={-1}
                     >
-                      {showPw ? "🙈" : "👁"}
+                      {eyeIcon}
                     </button>
                   </div>
                 </label>
