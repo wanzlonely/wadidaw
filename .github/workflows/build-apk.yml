@@ -1,0 +1,51 @@
+name: Build WALZPAY Listener APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "android-listener/**"
+      - ".github/workflows/build-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-listener
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build debug APK
+        run: gradle assembleDebug --stacktrace
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: walzpay-listener-apk
+          path: android-listener/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "### APK siap diunduh" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "1. Buka tab **Actions** di repo" >> "$GITHUB_STEP_SUMMARY"
+          echo "2. Pilih workflow **Build WALZPAY Listener APK**" >> "$GITHUB_STEP_SUMMARY"
+          echo "3. Klik run terbaru → **Artifacts** → **walzpay-listener-apk**" >> "$GITHUB_STEP_SUMMARY"
+          echo "4. Extract ZIP → install **app-debug.apk** di HP" >> "$GITHUB_STEP_SUMMARY"
