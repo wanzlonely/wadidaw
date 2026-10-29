@@ -2,9 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WALZPAY — QRIS Webhook Dashboard",
-  description:
-    "Dashboard notifikasi QRIS ke webhook · liquid glass · siap PWA",
+  title: "WALZPAY — Liquid Glass Dashboard",
+  description: "QRIS webhook · pesanan auto-settle · Redis · PWA",
   applicationName: "WALZPAY",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -15,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a1628",
+  themeColor: "#0b1020",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
