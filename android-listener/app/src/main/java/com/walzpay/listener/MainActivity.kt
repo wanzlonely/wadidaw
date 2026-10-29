@@ -27,6 +27,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import org.json.JSONArray
 import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
@@ -37,7 +38,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
         /** Bump when website UI changes so WebView does not keep stale JS/HTML. */
-        const val SITE_CACHE_BUST = "2.3.1"
+        const val SITE_CACHE_BUST = "2.4.0"
     }
 
     private val knownPackages = linkedMapOf(
@@ -84,7 +85,7 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         }
-        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.3.1"
+        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.4.0"
 
         // Drop old HTML/JS from previous deploys (Profil still showing Izin panel, etc.)
         webView.clearCache(true)
@@ -205,7 +206,39 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        /** Legacy fallback — prefer custom UI via getPackagesJson + setSelectedPackages */
         @JavascriptInterface fun openPackagePicker() { runOnUiThread { showPackagePicker() } }
+
+        @JavascriptInterface
+        fun getPackagesJson(): String {
+            val available = buildAvailablePackages()
+            val current = prefs().getStringSet("selected_packages", null) ?: emptySet()
+            val arr = JSONArray()
+            available.forEach { (pkg, label) ->
+                val o = JSONObject()
+                o.put("pkg", pkg)
+                o.put("label", label)
+                o.put("selected", current.contains(pkg))
+                arr.put(o)
+            }
+            return arr.toString()
+        }
+
+        @JavascriptInterface
+        fun setSelectedPackages(json: String) {
+            try {
+                val arr = JSONArray(json)
+                val set = HashSet<String>()
+                for (i in 0 until arr.length()) {
+                    val s = arr.optString(i).trim()
+                    if (s.isNotEmpty()) set.add(s)
+                }
+                prefs().edit().putStringSet("selected_packages", set).apply()
+                runOnUiThread { toast("Sumber disimpan (${set.size})") }
+            } catch (e: Exception) {
+                runOnUiThread { toast("Gagal simpan sumber: ${e.message}") }
+            }
+        }
 
         @JavascriptInterface
         fun toggleListener() {
@@ -274,8 +307,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 
-    private fun showPackagePicker() {
-        val p = prefs()
+    private fun buildAvailablePackages(): LinkedHashMap<String, String> {
         val available = LinkedHashMap<String, String>()
         knownPackages.forEach { (pkg, label) -> if (isPkg(pkg)) available[pkg] = label }
         try {
@@ -288,11 +320,16 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
         } catch (_: Exception) {}
+        return available
+    }
+
+    private fun showPackagePicker() {
+        val available = buildAvailablePackages()
         if (available.isEmpty()) { toast("Tidak ada app terpasang"); return }
         val packages = available.keys.toList()
         val labels = packages.map { "${available[it]}\n$it" }.toTypedArray()
-        val current = p.getStringSet("selected_packages", null)?.toMutableSet()
-            ?: packages.filter { knownPackages.containsKey(it) }.toMutableSet()
+        // No auto-select: only previously saved ones
+        val current = prefs().getStringSet("selected_packages", null)?.toMutableSet() ?: mutableSetOf()
         current.retainAll(packages.toSet())
         val checked = packages.map { current.contains(it) }.toBooleanArray()
         AlertDialog.Builder(this)
@@ -302,7 +339,7 @@ class MainActivity : AppCompatActivity() {
                 if (isChecked) current.add(pkg) else current.remove(pkg)
             }
             .setPositiveButton("Simpan") { _, _ ->
-                p.edit().putStringSet("selected_packages", HashSet(current)).apply()
+                prefs().edit().putStringSet("selected_packages", HashSet(current)).apply()
                 toast("Sumber disimpan (${current.size})")
             }
             .setNegativeButton("Batal", null)
