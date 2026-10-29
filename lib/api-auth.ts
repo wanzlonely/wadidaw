@@ -1,29 +1,24 @@
 import { NextRequest } from "next/server";
-import { getSession } from "./auth";
-import { setTenant } from "./tenant";
+import { resolveSession } from "./auth";
 
+/**
+ * Require authenticated user (cookie walz_sid OR x-walz-token header).
+ * Compatible with hybrid session after cookie-based auth rewrite.
+ */
 export async function requireUser(req: NextRequest): Promise<
-  | { ok: true; userId: string; email: string; token: string }
+  | { ok: true; userId: string; email: string; displayName: string; sid: string }
   | { ok: false; status: number; error: string }
 > {
-  const header =
-    req.headers.get("x-walz-token") ||
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
-    "";
-  const token = header.trim();
-  if (!token) {
+  const session = await resolveSession(req);
+  if (!session) {
     return { ok: false, status: 401, error: "Login diperlukan" };
   }
-  const session = await getSession(token);
-  if (!session || !session.a2fVerified) {
-    return { ok: false, status: 401, error: "Sesi tidak valid atau A2F belum selesai" };
-  }
-  setTenant(session.userId);
   return {
     ok: true,
     userId: session.userId,
     email: session.email,
-    token: session.token,
+    displayName: session.displayName,
+    sid: session.sid,
   };
 }
 
