@@ -67,14 +67,17 @@ export function AkunClient() {
   async function setPw() {
     if (password.length < 6) {
       setErr("Password baru minimal 6 karakter");
+      pushBubble({ title: "Password minimal 6 karakter", tone: "err" });
       return;
     }
     if (password !== password2) {
       setErr("Konfirmasi password tidak cocok");
+      pushBubble({ title: "Konfirmasi password tidak cocok", tone: "err" });
       return;
     }
     if (!oldPw) {
       setErr("Masukkan password lama");
+      pushBubble({ title: "Masukkan password lama", tone: "err" });
       return;
     }
     setBusy("pw");
@@ -92,6 +95,11 @@ export function AkunClient() {
       const data = await res.json();
       if (!res.ok) {
         setErr(data.error || "Gagal menyimpan password");
+        pushBubble({
+          title: "Gagal menyimpan password",
+          sub: data.error || "Coba lagi",
+          tone: "err",
+        });
         return;
       }
       setOldPw("");
@@ -105,6 +113,7 @@ export function AkunClient() {
       load();
     } catch {
       setErr("Koneksi gagal");
+      pushBubble({ title: "Koneksi gagal", tone: "err" });
     } finally {
       setBusy(null);
     }
@@ -125,6 +134,11 @@ export function AkunClient() {
       const data = await res.json();
       if (!res.ok) {
         setErr(data.error || "Gagal mengubah A2F");
+        pushBubble({
+          title: "Gagal mengubah A2F",
+          sub: data.error || "Coba lagi",
+          tone: "err",
+        });
         return;
       }
       pushBubble({
@@ -135,6 +149,7 @@ export function AkunClient() {
       load();
     } catch {
       setErr("Koneksi gagal");
+      pushBubble({ title: "Koneksi gagal", tone: "err" });
     } finally {
       setBusy(null);
     }
@@ -142,6 +157,7 @@ export function AkunClient() {
 
   async function logout() {
     setBusy("logout");
+    pushBubble({ title: "Keluar…", tone: "info" });
     try {
       await apiFetch("/api/auth", {
         method: "POST",
