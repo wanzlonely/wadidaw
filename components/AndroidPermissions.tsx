@@ -13,6 +13,78 @@ import {
 import { apiFetch } from "@/lib/client-api";
 import { pushBubble } from "@/components/BubbleToasts";
 
+function IzinIcon({ name }: { name: string }) {
+  const common = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+  switch (name) {
+    case "notification":
+      return (
+        <svg {...common} aria-hidden>
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+      );
+    case "push":
+      return (
+        <svg {...common} aria-hidden>
+          <path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3z" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+      );
+    case "battery":
+      return (
+        <svg {...common} aria-hidden>
+          <rect x="2" y="7" width="18" height="10" rx="2" />
+          <path d="M22 11v2M6 11v2M10 11v2M14 11v2" />
+        </svg>
+      );
+    case "autostart":
+      return (
+        <svg {...common} aria-hidden>
+          <path d="M5 12h14" />
+          <path d="M12 5l7 7-7 7" />
+        </svg>
+      );
+    case "overlay":
+      return (
+        <svg {...common} aria-hidden>
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M3 9h18M9 21V9" />
+        </svg>
+      );
+    case "packages":
+      return (
+        <svg {...common} aria-hidden>
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+          <path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12" />
+        </svg>
+      );
+    case "listener":
+      return (
+        <svg {...common} aria-hidden>
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+        </svg>
+      );
+    case "shizuku":
+      return (
+        <svg {...common} aria-hidden>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 type Row = {
   key: string;
   title: string;
@@ -24,7 +96,6 @@ type Row = {
   statusFn?: (st: AndroidStatus | null) => boolean;
   optional?: boolean;
   isPackages?: boolean;
-  /** If true, never claim "ok" — always show action CTA (e.g. autostart) */
   alwaysAction?: boolean;
 };
 
@@ -203,7 +274,6 @@ export function AndroidPermissions() {
     setSaving(false);
   }
 
-  /** true = granted, false = denied, null = unknown / loading */
   function isOk(row: Row): boolean | null {
     if (!inApp) return null;
     if (row.alwaysAction) return false;
@@ -276,7 +346,6 @@ export function AndroidPermissions() {
                 ? row.badLabel
                 : "Memeriksa…";
 
-        // Button text: NEVER show "Aktif" when denied
         let btnLabel: string;
         if (row.isPackages) {
           btnLabel = ok === true ? "Kelola sumber" : "Pilih aplikasi";
@@ -295,7 +364,10 @@ export function AndroidPermissions() {
             style={{ animationDelay: `${0.04 + idx * 0.03}s` }}
           >
             <div className="izin-row-top">
-              <div className="izin-row-text">
+              <div className="izin-ico">
+                <IzinIcon name={row.key} />
+              </div>
+              <div className="izin-row-text" style={{ flex: 1 }}>
                 <h3>
                   {row.title}
                   {row.optional ? (
@@ -324,10 +396,12 @@ export function AndroidPermissions() {
         );
       })}
 
-      {/* Listener only — webhook URL is on Beranda, not duplicated here */}
       <section className="glass card-v2 anim-rise izin-row izin-listener">
         <div className="izin-row-top">
-          <div className="izin-row-text">
+          <div className="izin-ico">
+            <IzinIcon name="listener" />
+          </div>
+          <div className="izin-row-text" style={{ flex: 1 }}>
             <h3>Listener monitoring</h3>
             <p className="muted">
               Layanan latar belakang yang mengirim notifikasi pembayaran ke server.
@@ -362,7 +436,10 @@ export function AndroidPermissions() {
 
       <section className="glass card-v2 anim-rise izin-row">
         <div className="izin-row-top">
-          <div className="izin-row-text">
+          <div className="izin-ico">
+            <IzinIcon name="shizuku" />
+          </div>
+          <div className="izin-row-text" style={{ flex: 1 }}>
             <h3>
               Shizuku <span className="izin-optional">opsional</span>
             </h3>
