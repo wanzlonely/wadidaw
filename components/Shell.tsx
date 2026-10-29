@@ -72,14 +72,22 @@ export function Shell({
   if (!ready) {
     return (
       <main className="shell shell-loading">
-        <div className="session-loader">
-          <div className="session-ring" aria-hidden>
+        <div className="boot-loader" aria-busy="true" aria-label="Memuat">
+          <div className="boot-orb boot-orb-1" aria-hidden />
+          <div className="boot-orb boot-orb-2" aria-hidden />
+          <div className="boot-core">
+            <div className="boot-ring" aria-hidden />
+            <div className="boot-ring boot-ring-2" aria-hidden />
+            <div className="boot-mark">W</div>
+          </div>
+          <div className="boot-bars" aria-hidden>
+            <span />
+            <span />
             <span />
             <span />
             <span />
           </div>
-          <div className="session-mark">W</div>
-          <p className="session-label">Memuat…</p>
+          <p className="boot-label">WALZPAY</p>
         </div>
       </main>
     );
