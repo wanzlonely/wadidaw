@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createOrder, listOrders, cancelOrder, sweepExpiredOrders } from "@/lib/store";
 import { getStaticQris } from "@/lib/static-qris";
 import { convertStaticToDynamic, computeAdminFee } from "@/lib/qris-convert";
-import { getSettingsForUser } from "@/lib/settings";
+import { getSettingsForUser, findUserIdByApiKey } from "@/lib/settings";
 import { getRedis, hasRedisEnv } from "@/lib/redis";
 import { resolveSession } from "@/lib/auth";
 import { setTenant } from "@/lib/tenant";
@@ -11,6 +11,20 @@ import { K } from "@/lib/tenant";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+async function resolveMerchant(req: NextRequest): Promise<string | null> {
+  const session = await resolveSession(req);
+  if (session) return session.userId;
+  const apiKey =
+    req.headers.get("x-api-key") ||
+    req.headers.get("x-walzpay-key") ||
+    "";
+  if (apiKey) {
+    const uid = await findUserIdByApiKey(apiKey.trim());
+    if (uid) return uid;
+  }
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json(
@@ -18,11 +32,14 @@ export async function GET(req: NextRequest) {
       { status: 503 }
     );
   }
-  const session = await resolveSession(req);
-  if (!session) {
-    return NextResponse.json({ error: "Belum login", orders: [] }, { status: 401 });
+  const userId = await resolveMerchant(req);
+  if (!userId) {
+    return NextResponse.json(
+      { error: "Belum login / API key invalid", orders: [] },
+      { status: 401 }
+    );
   }
-  setTenant(session.userId);
+  setTenant(userId);
   const status = req.nextUrl.searchParams.get("status") as
     | "pending"
     | "success"
@@ -38,11 +55,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
   }
 
-  const session = await resolveSession(req);
-  if (!session) {
-    return NextResponse.json({ error: "Belum login" }, { status: 401 });
+  const userId = await resolveMerchant(req);
+  if (!userId) {
+    return NextResponse.json(
+      { error: "Belum login / API key invalid" },
+      { status: 401 }
+    );
   }
-  setTenant(session.userId);
+  setTenant(userId);
 
   let body: Record<string, unknown>;
   try {
@@ -60,7 +80,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const settings = await getSettingsForUser(session.userId);
+    const settings = await getSettingsForUser(userId);
 
     let adminFee = 0;
     if (body.adminFee != null && Number.isFinite(Number(body.adminFee))) {
@@ -82,6 +102,9 @@ export async function POST(req: NextRequest) {
         ? Number(body.expiresInMinutes)
         : settings.defaultExpiryMinutes || 15;
 
+    const callbackUrl =
+      body.callbackUrl != null ? String(body.callbackUrl).trim() : null;
+
     const order = await createOrder({
       amount,
       reference: body.reference != null ? String(body.reference) : null,
@@ -92,6 +115,8 @@ export async function POST(req: NextRequest) {
       adminFee,
       minFee: settings.feeMin,
       maxFee: settings.feeMax,
+      callbackUrl:
+        callbackUrl && /^https?:\/\//i.test(callbackUrl) ? callbackUrl : null,
     });
 
     const qrisStaticId =
@@ -138,11 +163,13 @@ export async function DELETE(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
   }
-  // Scope to the logged-in user when possible
-  const session = await resolveSession(req);
-  if (session) setTenant(session.userId);
+  const userId = await resolveMerchant(req);
+  if (userId) setTenant(userId);
 
-  if (req.nextUrl.searchParams.get("all") === "1" || req.nextUrl.searchParams.get("purge") === "1") {
+  if (
+    req.nextUrl.searchParams.get("all") === "1" ||
+    req.nextUrl.searchParams.get("purge") === "1"
+  ) {
     await sweepExpiredOrders();
     return NextResponse.json({ ok: true, note: "sweep expired only" });
   }
