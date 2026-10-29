@@ -8,7 +8,7 @@ type Settings = {
   displayName: string;
   apiKey: string;
   webhookSecret: string;
-  feeType: "none" | "fixed" | "percent" | "random";
+  feeType: "random";
   feeValue: number;
   feeMin: number;
   feeMax: number;
@@ -51,12 +51,13 @@ export function ProfileClient() {
     const sData = await sRes.json();
     const qData = await qRes.json();
     if (!sRes.ok) {
-      setErr(sData.error || "Gagal load");
+      setErr(sData.error || "Gagal memuat");
       return;
     }
     setErr(null);
     setS({
       ...sData.settings,
+      feeType: "random",
       enabledMerchants: sData.settings.enabledMerchants ?? [],
       feeMin: sData.settings.feeMin ?? 1,
       feeMax: sData.settings.feeMax ?? 99,
@@ -138,8 +139,8 @@ export function ProfileClient() {
         action: "update",
         displayName: s.displayName,
         webhookSecret: s.webhookSecret,
-        feeType: s.feeType,
-        feeValue: s.feeValue,
+        feeType: "random",
+        feeValue: 0,
         feeMin: s.feeMin,
         feeMax: s.feeMax,
         defaultExpiryMinutes: s.defaultExpiryMinutes,
@@ -154,6 +155,7 @@ export function ProfileClient() {
     }
     setS({
       ...data.settings,
+      feeType: "random",
       enabledMerchants: data.settings.enabledMerchants ?? [],
       feeMin: data.settings.feeMin ?? 1,
       feeMax: data.settings.feeMax ?? 99,
@@ -227,17 +229,17 @@ export function ProfileClient() {
   return (
     <>
       {err ? (
-        <section className="glass">
+        <section className="glass anim-shake">
           <p style={{ color: "var(--rose)" }}>{err}</p>
         </section>
       ) : null}
       {msg ? (
-        <section className="glass">
-          <p style={{ color: "var(--mint)" }}>{msg}</p>
-        </section>
+        <div className="toast-banner anim-pop" role="status">
+          {msg}
+        </div>
       ) : null}
 
-      <section className="glass">
+      <section className="glass anim-rise">
         <h2>QRIS statis \u00b7 maks. 3</h2>
         <p className="muted" style={{ marginBottom: 12 }}>
           Upload foto QRIS dari galeri. String & info dibaca otomatis.
@@ -256,7 +258,7 @@ export function ProfileClient() {
             </div>
             <button
               type="button"
-              className="btn btn-ghost"
+              className="btn btn-ghost btn-press"
               style={{ marginTop: 0 }}
               onClick={() => deleteStatic(t.id)}
             >
@@ -276,7 +278,7 @@ export function ProfileClient() {
             />
             <button
               type="button"
-              className="btn btn-block"
+              className="btn btn-block btn-press"
               disabled={scanning || busy}
               onClick={() => fileRef.current?.click()}
             >
@@ -284,7 +286,7 @@ export function ProfileClient() {
             </button>
 
             {preview ? (
-              <div className="preview-box">
+              <div className="preview-box anim-pop">
                 <p style={{ fontWeight: 600, color: "var(--ink)" }}>
                   {preview.merchantName}
                 </p>
@@ -302,7 +304,7 @@ export function ProfileClient() {
                 </p>
                 <button
                   type="button"
-                  className="btn btn-block"
+                  className="btn btn-block btn-press"
                   style={{ marginTop: 12 }}
                   disabled={busy}
                   onClick={saveStatic}
@@ -311,7 +313,7 @@ export function ProfileClient() {
                 </button>
                 <button
                   type="button"
-                  className="btn btn-block btn-ghost"
+                  className="btn btn-block btn-ghost btn-press"
                   style={{ marginTop: 8 }}
                   onClick={() => setPreview(null)}
                 >
@@ -327,7 +329,7 @@ export function ProfileClient() {
         )}
       </section>
 
-      <section className="glass">
+      <section className="glass anim-rise">
         <h2>Sumber notifikasi</h2>
         <p className="muted" style={{ marginBottom: 8 }}>
           Pilih aplikasi sumber notifikasi langsung di aplikasi listener Android
@@ -336,68 +338,38 @@ export function ProfileClient() {
         </p>
       </section>
 
-      <section className="glass">
-        <h2>Biaya & masa berlaku</h2>
-        <label className="muted" style={{ display: "block", marginTop: 8 }}>
-          Mode biaya admin
-        </label>
-        <select
-          className="input"
-          style={{ width: "100%", marginTop: 4 }}
-          value={s.feeType}
-          onChange={(e) =>
-            setS({
-              ...s,
-              feeType: e.target.value as Settings["feeType"],
-            })
-          }
-        >
-          <option value="random">Acak (anti-collision, disarankan)</option>
-          <option value="fixed">Fixed (Rp)</option>
-          <option value="percent">Persen (%)</option>
-          <option value="none">Tanpa biaya ekstra</option>
-        </select>
-        {s.feeType === "random" ? (
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <div style={{ flex: 1 }}>
-              <label className="muted" style={{ fontSize: 12 }}>Min (Rp)</label>
-              <input
-                className="input"
-                style={{ width: "100%", marginTop: 4 }}
-                type="number"
-                value={s.feeMin ?? 1}
-                onChange={(e) =>
-                  setS({ ...s, feeMin: Math.max(0, Number(e.target.value) || 0) })
-                }
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label className="muted" style={{ fontSize: 12 }}>Max (Rp)</label>
-              <input
-                className="input"
-                style={{ width: "100%", marginTop: 4 }}
-                type="number"
-                value={s.feeMax ?? 99}
-                onChange={(e) =>
-                  setS({ ...s, feeMax: Math.max(0, Number(e.target.value) || 0) })
-                }
-              />
-            </div>
+      <section className="glass anim-rise">
+        <h2>Biaya admin & masa berlaku</h2>
+        <p className="muted" style={{ marginBottom: 10 }}>
+          Biaya admin selalu acak dalam rentang di bawah (anti-collision nominal).
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <label className="muted" style={{ fontSize: 12 }}>Min (Rp)</label>
+            <input
+              className="input"
+              style={{ width: "100%", marginTop: 4 }}
+              type="number"
+              value={s.feeMin ?? 1}
+              onChange={(e) =>
+                setS({ ...s, feeMin: Math.max(0, Number(e.target.value) || 0) })
+              }
+            />
           </div>
-        ) : null}
-        {s.feeType === "fixed" || s.feeType === "percent" ? (
-          <input
-            className="input"
-            style={{ width: "100%", marginTop: 8 }}
-            type="number"
-            placeholder={s.feeType === "fixed" ? "Rp" : "%"}
-            value={s.feeValue || ""}
-            onChange={(e) =>
-              setS({ ...s, feeValue: Number(e.target.value) || 0 })
-            }
-          />
-        ) : null}
-        <label className="muted" style={{ display: "block", marginTop: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label className="muted" style={{ fontSize: 12 }}>Max (Rp)</label>
+            <input
+              className="input"
+              style={{ width: "100%", marginTop: 4 }}
+              type="number"
+              value={s.feeMax ?? 99}
+              onChange={(e) =>
+                setS({ ...s, feeMax: Math.max(0, Number(e.target.value) || 0) })
+              }
+            />
+          </div>
+        </div>
+        <label className="muted" style={{ display: "block", marginTop: 14 }}>
           Default expired order
         </label>
         <select
@@ -416,7 +388,7 @@ export function ProfileClient() {
         </select>
         <button
           type="button"
-          className="btn btn-block"
+          className="btn btn-block btn-press"
           style={{ marginTop: 12 }}
           disabled={busy}
           onClick={save}
@@ -425,10 +397,10 @@ export function ProfileClient() {
         </button>
       </section>
 
-      <section className="glass">
-        <h2>Profil</h2>
+      <section className="glass anim-rise">
+        <h2>Nama tampilan</h2>
         <label className="muted" style={{ display: "block", marginTop: 8 }}>
-          Nama tampilan
+          Nama merchant
         </label>
         <input
           className="input"
@@ -438,16 +410,16 @@ export function ProfileClient() {
         />
         <button
           type="button"
-          className="btn btn-block"
+          className="btn btn-block btn-press"
           style={{ marginTop: 12 }}
           disabled={busy}
           onClick={save}
         >
-          Simpan profil
+          Simpan nama
         </button>
       </section>
 
-      <section className="glass">
+      <section className="glass anim-rise">
         <h2>Webhook HP</h2>
         <p
           className="muted"
@@ -461,7 +433,7 @@ export function ProfileClient() {
         </p>
         <button
           type="button"
-          className="btn btn-ghost"
+          className="btn btn-ghost btn-press"
           style={{ marginTop: 8 }}
           onClick={() => copy(hookPath, "Webhook URL")}
         >
@@ -479,7 +451,7 @@ export function ProfileClient() {
         />
         <button
           type="button"
-          className="btn btn-block"
+          className="btn btn-block btn-press"
           style={{ marginTop: 10 }}
           disabled={busy}
           onClick={save}
@@ -488,7 +460,7 @@ export function ProfileClient() {
         </button>
       </section>
 
-      <section className="glass">
+      <section className="glass anim-rise">
         <h2>API key</h2>
         <p
           className="muted"
@@ -503,14 +475,14 @@ export function ProfileClient() {
         <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
           <button
             type="button"
-            className="btn btn-ghost"
+            className="btn btn-ghost btn-press"
             onClick={() => copy(s.apiKey, "API key")}
           >
             Salin
           </button>
           <button
             type="button"
-            className="btn btn-ghost"
+            className="btn btn-ghost btn-press"
             disabled={busy}
             onClick={rotateKey}
           >
@@ -519,7 +491,7 @@ export function ProfileClient() {
         </div>
       </section>
 
-      <section className="glass">
+      <section className="glass anim-rise">
         <h2>Password</h2>
         <p className="muted">
           {s.hasPassword ? "Password aktif." : "Opsional."}
@@ -535,7 +507,7 @@ export function ProfileClient() {
         <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
           <button
             type="button"
-            className="btn"
+            className="btn btn-press"
             disabled={busy || password.length < 6}
             onClick={setPw}
           >
@@ -544,7 +516,7 @@ export function ProfileClient() {
           {s.hasPassword ? (
             <button
               type="button"
-              className="btn btn-ghost"
+              className="btn btn-ghost btn-press"
               disabled={busy}
               onClick={clearPw}
             >

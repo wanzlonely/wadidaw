@@ -46,6 +46,7 @@ export function OrdersClient() {
   const [err, setErr] = useState<string | null>(null);
   const [active, setActive] = useState<Order | null>(null);
   const [remainSec, setRemainSec] = useState<number | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const activeIdRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -113,7 +114,7 @@ export function OrdersClient() {
       return;
     }
     if (templates.length === 0) {
-      setErr("Belum ada QRIS. Upload di halaman Profil dulu.");
+      setErr("Belum ada QRIS. Upload di halaman Setel dulu.");
       return;
     }
     setBusy(true);
@@ -145,16 +146,20 @@ export function OrdersClient() {
 
   async function cancel(id: string) {
     if (!confirm("Batalkan transaksi ini?")) return;
+    setCancelling(true);
     setBusy(true);
     await fetch(`/api/orders?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
     setBusy(false);
-    if (activeIdRef.current === id) {
-      setActive(null);
-      activeIdRef.current = null;
-    }
-    load();
+    setTimeout(() => {
+      setCancelling(false);
+      if (activeIdRef.current === id) {
+        setActive(null);
+        activeIdRef.current = null;
+      }
+      load();
+    }, 420);
   }
 
   const pending = orders.filter((o) => o.status === "pending");
@@ -166,22 +171,22 @@ export function OrdersClient() {
   return (
     <>
       {err ? (
-        <section className="glass">
+        <section className="glass anim-shake">
           <p style={{ color: "var(--rose)" }}>{err}</p>
         </section>
       ) : null}
 
       {templates.length === 0 ? (
-        <section className="glass">
+        <section className="glass anim-rise">
           <h2>Siapkan QRIS</h2>
           <p className="muted">
             Upload gambar QRIS di halaman{" "}
-            <strong style={{ color: "var(--ink)" }}>Profil</strong> terlebih
+            <strong style={{ color: "var(--ink)" }}>Setel</strong> terlebih
             dahulu. Setelah itu cukup masukkan nominal di sini.
           </p>
         </section>
       ) : (
-        <section className="glass">
+        <section className="glass anim-rise">
           <h2>Buat transaksi</h2>
           <p className="muted" style={{ marginBottom: 12 }}>
             {templates[0].merchantName}
@@ -202,7 +207,7 @@ export function OrdersClient() {
           </div>
           <button
             type="button"
-            className="btn btn-block"
+            className="btn btn-block btn-press"
             disabled={busy || !amount}
             onClick={create}
           >
@@ -213,7 +218,7 @@ export function OrdersClient() {
 
       {showOrder ? (
         <section
-          className="glass qr-card"
+          className={`glass qr-card ${cancelling ? "anim-cancel" : ""} ${showOrder.status === "success" ? "anim-success" : "anim-pop"}`}
           style={{
             borderColor:
               showOrder.status === "success"
@@ -235,7 +240,7 @@ export function OrdersClient() {
               </div>
               <button
                 type="button"
-                className="btn btn-block btn-ghost"
+                className="btn btn-block btn-ghost btn-press"
                 onClick={() => {
                   setActive(null);
                   activeIdRef.current = null;
@@ -295,7 +300,7 @@ export function OrdersClient() {
 
               <button
                 type="button"
-                className="btn btn-block btn-ghost"
+                className="btn btn-block btn-ghost btn-press"
                 style={{ marginTop: 14 }}
                 disabled={busy}
                 onClick={() => cancel(showOrder.id)}
@@ -308,10 +313,14 @@ export function OrdersClient() {
       ) : null}
 
       {pending.length > 0 ? (
-        <section className="glass">
+        <section className="glass anim-rise">
           <h2>Antrian \u00b7 {pending.length}</h2>
-          {pending.map((o) => (
-            <div key={o.id} className="list-item" style={{ marginTop: 10 }}>
+          {pending.map((o, i) => (
+            <div
+              key={o.id}
+              className="list-item anim-rise"
+              style={{ marginTop: 10, animationDelay: `${Math.min(i, 6) * 0.04}s` }}
+            >
               <div style={{ flex: 1 }}>
                 <div className="amount sm">
                   {formatRp(o.totalAmount ?? o.amount)}
@@ -322,7 +331,7 @@ export function OrdersClient() {
               </div>
               <button
                 type="button"
-                className="btn btn-ghost"
+                className="btn btn-ghost btn-press"
                 style={{ marginTop: 0, fontSize: 13 }}
                 onClick={() => {
                   activeIdRef.current = o.id;
@@ -333,7 +342,7 @@ export function OrdersClient() {
               </button>
               <button
                 type="button"
-                className="btn btn-ghost"
+                className="btn btn-ghost btn-press"
                 style={{ marginTop: 0, fontSize: 13 }}
                 onClick={() => cancel(o.id)}
               >
