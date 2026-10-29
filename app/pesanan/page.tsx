@@ -3,7 +3,7 @@ import { OrdersClient } from "@/components/OrdersClient";
 
 export default function PesananPage() {
   return (
-    <Shell active="/pesanan" subtitle="Pesanan · auto settle nominal">
+    <Shell active="/pesanan" subtitle="Generate QRIS">
       <OrdersClient />
     </Shell>
   );
