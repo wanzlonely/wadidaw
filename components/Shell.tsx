@@ -1,11 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Nav } from "./Nav";
 
 /**
- * Shell hanya layout UI.
- * Auth dicek oleh AuthGuard di layout (localStorage token).
- * Jangan cek sesi di sini — GET /api/auth tidak ada & membuat "Memeriksa sesi" stuck.
+ * Shell = layout UI + session gate (cookie walz_sid via GET /api/auth).
+ * Timeout 8s supaya tidak stuck di "Memeriksa sesi…".
  */
 export function Shell({
   active,
@@ -18,6 +19,52 @@ export function Shell({
   children: React.ReactNode;
   redisOk?: boolean | null;
 }) {
+  const pathname = usePathname();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (pathname === "/login" || pathname?.startsWith("/pay/")) {
+      setReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 8000);
+
+    fetch("/api/auth", { credentials: "include", signal: ctrl.signal })
+      .then(async (r) => {
+        clearTimeout(to);
+        if (cancelled) return;
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.authenticated) {
+          window.location.replace("/login");
+          return;
+        }
+        setReady(true);
+      })
+      .catch(() => {
+        clearTimeout(to);
+        if (!cancelled) window.location.replace("/login");
+      });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(to);
+      ctrl.abort();
+    };
+  }, [pathname]);
+
+  if (!ready) {
+    return (
+      <main className="shell">
+        <p className="muted" style={{ textAlign: "center", marginTop: 80 }}>
+          Memeriksa sesi…
+        </p>
+      </main>
+    );
+  }
+
   return (
     <main className="shell">
       <header className="topbar">
