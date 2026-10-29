@@ -355,10 +355,6 @@ export default function LoginPage() {
           </form>
         )}
       </div>
-
-      <p className="auth-foot muted">
-        Data per akun terpisah · Session aman 14 hari
-      </p>
     </div>
   );
 }
