@@ -6,6 +6,9 @@ import { formatRp, formatTime } from "@/lib/format";
 type Order = {
   id: string;
   amount: number;
+  uniqueCode?: number;
+  totalAmount?: number;
+  token?: string;
   reference?: string | null;
   customerName?: string | null;
   note?: string | null;
@@ -14,6 +17,7 @@ type Order = {
   paidAt?: string | null;
   matchedPaymentId?: string | null;
   expiresAt?: string | null;
+  mode?: "dynamic" | "static";
 };
 
 export function OrdersClient() {
@@ -23,6 +27,8 @@ export function OrdersClient() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [lastCreated, setLastCreated] = useState<Order | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/orders");
@@ -48,6 +54,7 @@ export function OrdersClient() {
       return;
     }
     setBusy(true);
+    setLastCreated(null);
     const res = await fetch("/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -56,6 +63,7 @@ export function OrdersClient() {
         customerName: customer || null,
         note: note || null,
         expiresInMinutes: 60,
+        dynamic: true,
       }),
     });
     const data = await res.json();
@@ -67,6 +75,7 @@ export function OrdersClient() {
     setAmount("");
     setCustomer("");
     setNote("");
+    setLastCreated(data.order);
     load();
   }
 
@@ -74,6 +83,23 @@ export function OrdersClient() {
     if (!confirm("Batalkan pesanan ini?")) return;
     await fetch(`/api/orders?id=${encodeURIComponent(id)}`, { method: "DELETE" });
     load();
+  }
+
+  function paymentLink(o: Order) {
+    if (typeof window === "undefined") return "";
+    const tok = o.token || o.id;
+    return `${window.location.origin}/pay/${tok}`;
+  }
+
+  async function copyLink(o: Order) {
+    const link = paymentLink(o);
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedId(o.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      /* ignore */
+    }
   }
 
   const pending = orders.filter((o) => o.status === "pending");
@@ -87,15 +113,17 @@ export function OrdersClient() {
       ) : null}
 
       <section className="glass">
-        <h2>Buat pesanan</h2>
+        <h2>Buat pesanan · QRIS dinamis</h2>
         <p className="muted">
-          Saat notifikasi masuk dengan nominal sama, status otomatis jadi{" "}
+          Setiap pesanan mendapat <strong>kode unik 3 digit</strong> yang ditambahkan ke
+          nominal. Pelanggan transfer <strong>totalAmount</strong> (base + kode).
+          Saat notifikasi masuk dengan nominal yang sama, status otomatis jadi{" "}
           <strong style={{ color: "var(--mint)" }}>success</strong>.
         </p>
         <input
           className="input"
           style={{ marginTop: 10, width: "100%" }}
-          placeholder="Nominal (contoh 25000)"
+          placeholder="Nominal dasar (contoh 25000)"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           inputMode="numeric"
@@ -115,9 +143,38 @@ export function OrdersClient() {
           onChange={(e) => setNote(e.target.value)}
         />
         <button type="button" className="btn btn-block" disabled={busy} onClick={create}>
-          Buat pesanan pending
+          Buat pesanan dinamis
         </button>
       </section>
+
+      {lastCreated ? (
+        <section className="glass" style={{ borderColor: "rgba(126,224,200,0.35)" }}>
+          <h2 style={{ color: "var(--mint)" }}>Pesanan dibuat</h2>
+          <p className="muted" style={{ marginTop: 6 }}>
+            Base {formatRp(lastCreated.amount)}
+            {lastCreated.uniqueCode ? (
+              <>
+                {" "}
+                + kode <strong>{lastCreated.uniqueCode}</strong> ={" "}
+                <strong style={{ color: "var(--mint)" }}>
+                  {formatRp(lastCreated.totalAmount ?? lastCreated.amount)}
+                </strong>
+              </>
+            ) : null}
+          </p>
+          <p className="muted" style={{ marginTop: 4, wordBreak: "break-all" }}>
+            Link: {typeof window !== "undefined" ? paymentLink(lastCreated) : "/pay/…"}
+          </p>
+          <button
+            type="button"
+            className="btn btn-block"
+            style={{ marginTop: 10 }}
+            onClick={() => copyLink(lastCreated)}
+          >
+            {copiedId === lastCreated.id ? "Link tersalin ✓" : "Salin payment link"}
+          </button>
+        </section>
+      ) : null}
 
       <section className="glass">
         <h2>Menunggu bayar · {pending.length}</h2>
@@ -126,18 +183,40 @@ export function OrdersClient() {
         ) : (
           pending.map((o) => (
             <div key={o.id} className="list-item" style={{ marginTop: 12 }}>
-              <div>
-                <div className="amount sm">{formatRp(o.amount)}</div>
+              <div style={{ flex: 1 }}>
+                <div className="amount sm">
+                  {formatRp(o.totalAmount ?? o.amount)}
+                  {o.uniqueCode ? (
+                    <span className="muted" style={{ fontSize: 13, fontWeight: 400 }}>
+                      {" "}(base {formatRp(o.amount)} + {o.uniqueCode})
+                    </span>
+                  ) : null}
+                </div>
                 <p className="muted">
                   {o.customerName || "—"}
                   {o.note ? ` · ${o.note}` : ""}
                 </p>
                 <p className="muted">{formatTime(o.createdAt)}</p>
                 <span className="status-chip pending">pending</span>
+                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ marginTop: 0, fontSize: 13 }}
+                    onClick={() => copyLink(o)}
+                  >
+                    {copiedId === o.id ? "Tersalin ✓" : "Salin link"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ marginTop: 0, fontSize: 13 }}
+                    onClick={() => cancel(o.id)}
+                  >
+                    Batal
+                  </button>
+                </div>
               </div>
-              <button type="button" className="btn btn-ghost" style={{ marginTop: 0 }} onClick={() => cancel(o.id)}>
-                Batal
-              </button>
             </div>
           ))
         )}
@@ -153,7 +232,7 @@ export function OrdersClient() {
             .slice(0, 30)
             .map((o) => (
               <div key={o.id} style={{ marginTop: 12 }}>
-                <div className="amount sm">{formatRp(o.amount)}</div>
+                <div className="amount sm">{formatRp(o.totalAmount ?? o.amount)}</div>
                 <p className="muted">
                   {o.customerName || "—"} ·{" "}
                   <span className={`status-chip ${o.status}`}>{o.status}</span>
