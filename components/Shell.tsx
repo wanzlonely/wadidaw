@@ -7,11 +7,6 @@ import { Nav } from "./Nav";
 import { BubbleToasts } from "./BubbleToasts";
 import { apiFetch, setStoredToken } from "@/lib/api";
 
-/**
- * Shell = layout UI + session gate.
- * Cookie + token backup. Timeout 8s — tidak stuck di "Memeriksa sesi…".
- * Setel (pengaturan) di pojok kanan atas, bukan di bottom nav.
- */
 export function Shell({
   active,
   subtitle,
@@ -68,11 +63,14 @@ export function Shell({
   if (!ready) {
     return (
       <main className="shell shell-loading">
-        <div className="auth-logo" style={{ marginTop: 100 }}>
-          <div className="logo-mark">W</div>
-          <p className="muted" style={{ marginTop: 12, textAlign: "center" }}>
-            Memeriksa sesi…
-          </p>
+        <div className="session-loader">
+          <div className="session-ring" aria-hidden>
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className="session-mark">W</div>
+          <p className="session-label">Memuat…</p>
         </div>
       </main>
     );
