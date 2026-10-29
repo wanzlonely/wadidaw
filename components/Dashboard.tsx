@@ -171,24 +171,6 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
     refresh();
   }
 
-  async function testPay(kind: "default" | "whatsapp" | "dana") {
-    setBusy(true);
-    const res = await fetch("/api/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        kind,
-        amount: kind === "whatsapp" ? 25000 : kind === "dana" ? 15000 : 10000,
-      }),
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setErr(j.error || "Gagal kirim uji");
-    }
-    setBusy(false);
-    refresh();
-  }
-
   function toggleMerchant(id: string) {
     const next = { ...merchants, [id]: !merchants[id] };
     setMerchants(next);
@@ -315,17 +297,10 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       </section>
 
       <section className="glass">
-        <h2>Uji parser</h2>
-        <button type="button" className="btn btn-block" disabled={busy} onClick={() => testPay("dana")}>
-          Uji DANA · Rp15.000
-        </button>
-        <button type="button" className="btn btn-block btn-ghost" disabled={busy} onClick={() => testPay("whatsapp")}>
-          Uji WhatsApp · Rp25.000
-        </button>
-      </section>
-
-      <section className="glass">
         <h2>Webhook HP</h2>
+        <p className="muted" style={{ marginBottom: 8 }}>
+          Uji real: notifikasi WhatsApp/DANA dari HP akan masuk ke URL ini.
+        </p>
         <code className="code">{hookPath}</code>
         <button type="button" className="btn btn-block" onClick={copyHook}>
           Salin URL
