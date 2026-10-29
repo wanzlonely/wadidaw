@@ -1,9 +1,14 @@
 /**
  * Static → Dynamic QRIS converter (EMVCo / BI).
- * Logic adapted from https://github.com/verssache/qris-dinamis
+ * Adapted from https://github.com/verssache/qris-dinamis
  */
 
 type TLV = { tag: string; length: number; value: string; children?: TLV[] };
+
+export type FeeOption =
+  | { type: "fixed"; value: number }
+  | { type: "percent"; value: number }
+  | null;
 
 const NESTED_TAGS = new Set([
   ...Array.from({ length: 26 }, (_, i) => String(i + 26).padStart(2, "0")),
@@ -53,7 +58,6 @@ function makeTLV(tag: string, value: string): TLV {
   return { tag, length: value.length, value };
 }
 
-/** Extract merchant name (tag 59) and city (tag 60) from QRIS string */
 export function parseQrisMeta(qrisString: string): {
   merchantName: string;
   merchantCity: string;
@@ -69,18 +73,24 @@ export function parseQrisMeta(qrisString: string): {
   };
 }
 
-/** Basic structural check */
 export function isLikelyQris(s: string): boolean {
   const t = s.trim();
   return t.startsWith("000201") && t.length >= 50 && /63\d{2}[0-9A-Fa-f]{4}$/.test(t);
 }
 
-/**
- * Convert static QRIS → dynamic with fixed amount (IDR integer, no decimals).
- */
+export function computeAdminFee(
+  baseAmount: number,
+  fee: FeeOption
+): number {
+  if (!fee) return 0;
+  if (fee.type === "fixed") return Math.max(0, Math.round(fee.value));
+  return Math.max(0, Math.round((baseAmount * fee.value) / 100));
+}
+
 export function convertStaticToDynamic(
   qrisString: string,
-  amount: number
+  amount: number,
+  fee: FeeOption = null
 ): string {
   const clean = qrisString.trim().replace(/\s/g, "");
   if (!isLikelyQris(clean)) {
@@ -105,6 +115,15 @@ export function convertStaticToDynamic(
 
     if (el.tag === "58" && !amountInserted) {
       result.push(makeTLV("54", String(Math.round(amount))));
+      if (fee && fee.value > 0) {
+        if (fee.type === "fixed") {
+          result.push(makeTLV("55", "02"));
+          result.push(makeTLV("56", String(Math.round(fee.value))));
+        } else {
+          result.push(makeTLV("55", "03"));
+          result.push(makeTLV("57", String(fee.value)));
+        }
+      }
       amountInserted = true;
     }
 
