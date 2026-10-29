@@ -6,6 +6,7 @@ const items = [
   { href: "/", label: "Beranda", icon: "⌂" },
   { href: "/riwayat", label: "Riwayat", icon: "☰" },
   { href: "/pesanan", label: "Pesanan", icon: "◇" },
+  { href: "/izin", label: "Izin", icon: "⚡" },
   { href: "/profil", label: "Profil", icon: "◎" },
 ];
 
