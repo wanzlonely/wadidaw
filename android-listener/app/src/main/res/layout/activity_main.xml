@@ -29,13 +29,20 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Cek status izin..."
-            android:paddingBottom="8dp" />
+            android:paddingBottom="4dp" />
 
         <TextView
             android:id="@+id/tvBatteryStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Cek baterai..."
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:id="@+id/tvShizukuStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Shizuku: …"
             android:paddingBottom="8dp" />
 
         <Button
@@ -49,6 +56,20 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="2. Tanpa batasan baterai"
+            android:layout_marginTop="8dp" />
+
+        <Button
+            android:id="@+id/btnAutostart"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="3. Autostart (Xiaomi/OPPO/Vivo/…)"
+            android:layout_marginTop="8dp" />
+
+        <Button
+            android:id="@+id/btnShizuku"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="4. Izinkan Shizuku (opsional)"
             android:layout_marginTop="8dp" />
 
         <TextView
@@ -111,7 +132,7 @@
             android:id="@+id/switchEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="3. Aktifkan Listener"
+            android:text="5. Aktifkan Listener"
             android:paddingTop="16dp" />
 
         <Button
@@ -148,7 +169,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="20dp"
-            android:text="OEM (Xiaomi/OPPO/Vivo): aktifkan Autostart. Opsional: Service Keeper pantau com.walzpay.listener"
+            android:text="Tips: aktifkan Autostart + tanpa optimasi baterai. Shizuku opsional (pasang app Shizuku + start via Wireless debugging)."
             android:textSize="12sp" />
 
     </LinearLayout>
