@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatRp, formatTime } from "@/lib/format";
+import { apiFetch } from "@/lib/client-api";
 
 type Order = {
   id: string;
@@ -39,8 +40,8 @@ export function RiwayatClient() {
 
   async function load() {
     const [oRes, pRes] = await Promise.all([
-      fetch("/api/orders"),
-      fetch("/api/payments"),
+      apiFetch("/api/orders"),
+      apiFetch("/api/payments"),
     ]);
     const oData = await oRes.json();
     const pData = await pRes.json();
@@ -101,16 +102,16 @@ export function RiwayatClient() {
   return (
     <>
       {error ? (
-        <section className="glass anim-shake">
+        <section className="glass card-v2 anim-shake">
           <p style={{ color: "var(--rose)" }}>{error}</p>
         </section>
       ) : null}
 
-      <section className="glass">
+      <section className="glass card-v2">
         <div className="form-row">
           <input
             className="input"
-            placeholder="Cari nominal atau ID\u2026"
+            placeholder="Cari nominal atau ID…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -136,13 +137,13 @@ export function RiwayatClient() {
             disabled={busy}
             onClick={refresh}
           >
-            {busy ? "Memuat\u2026" : "Refresh"}
+            {busy ? "Memuat…" : "Refresh"}
           </button>
         </div>
       </section>
 
-      <section className="glass">
-        <h2>Transaksi \u00b7 {filtered.length}</h2>
+      <section className="glass card-v2">
+        <h2>Transaksi · {filtered.length}</h2>
         {filtered.length === 0 ? (
           <p className="empty" style={{ marginTop: 12 }}>
             Belum ada transaksi
@@ -152,7 +153,10 @@ export function RiwayatClient() {
             <div
               key={o.id}
               className={`list-item anim-rise status-${o.status}`}
-              style={{ marginTop: 10, animationDelay: `${Math.min(i, 8) * 0.04}s` }}
+              style={{
+                marginTop: 10,
+                animationDelay: `${Math.min(i, 8) * 0.04}s`,
+              }}
             >
               <div style={{ flex: 1 }}>
                 <div className="amount sm">
@@ -166,7 +170,7 @@ export function RiwayatClient() {
                 </p>
                 <p className="muted" style={{ fontSize: 11 }}>
                   {formatTime(o.createdAt)}
-                  {o.paidAt ? ` \u00b7 dibayar ${formatTime(o.paidAt)}` : ""}
+                  {o.paidAt ? ` · dibayar ${formatTime(o.paidAt)}` : ""}
                 </p>
               </div>
               <span className={`status-chip status-${o.status}`}>
@@ -178,19 +182,22 @@ export function RiwayatClient() {
       </section>
 
       {payments.length > 0 ? (
-        <section className="glass">
-          <h2>Notifikasi masuk \u00b7 {payments.length}</h2>
+        <section className="glass card-v2">
+          <h2>Notifikasi masuk · {payments.length}</h2>
           {payments.slice(0, 30).map((p, i) => (
             <div
               key={p.id}
               className="list-item anim-rise"
-              style={{ marginTop: 10, animationDelay: `${Math.min(i, 6) * 0.03}s` }}
+              style={{
+                marginTop: 10,
+                animationDelay: `${Math.min(i, 6) * 0.03}s`,
+              }}
             >
               <div style={{ flex: 1 }}>
                 <div className="amount sm">{formatRp(p.amount)}</div>
                 <p className="muted" style={{ fontSize: 12 }}>
                   {p.merchantId}
-                  {p.senderName ? ` \u00b7 ${p.senderName}` : ""}
+                  {p.senderName ? ` · ${p.senderName}` : ""}
                 </p>
                 <p className="muted" style={{ fontSize: 11 }}>
                   {formatTime(p.receivedAt)}
