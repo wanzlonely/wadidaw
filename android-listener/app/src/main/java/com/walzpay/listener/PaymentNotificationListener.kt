@@ -22,11 +22,13 @@ class PaymentNotificationListener : NotificationListenerService() {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    /** Package yang dipantau. DANA Bisnis utama. */
     private val allowedPackages = setOf(
         "id.dana",
         "id.dana.kasir",
         "com.gojek.gopaymerchant",
-        "com.gojek.app"
+        "id.co.bri.merchant",
+        "com.interactive.qrisid"
     )
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -40,7 +42,7 @@ class PaymentNotificationListener : NotificationListenerService() {
 
         val webhookUrl = prefs.getString("webhook_url", null)?.trim()
         if (webhookUrl.isNullOrEmpty()) {
-            Log.w(TAG, "Webhook URL belum diisi")
+            AppLog.append(this, "Skip: webhook URL kosong")
             return
         }
 
@@ -55,19 +57,30 @@ class PaymentNotificationListener : NotificationListenerService() {
         val amount = extractAmount(combined)
 
         if (amount == null || amount <= 0) {
-            Log.d(TAG, "Skip: tidak menemukan nominal valid → $combined")
+            AppLog.append(this, "Skip no amount · $packageName · ${combined.take(60)}")
             return
         }
 
-        // Filter kasar notifikasi gagal / promo
         val lower = combined.lowercase()
-        val ignoreKeywords = listOf("gagal", "batal", "refund", "promo", "voucher", "otp", "kode verifikasi")
+        val ignoreKeywords = listOf(
+            "gagal", "batal", "refund", "promo", "voucher",
+            "otp", "kode verifikasi", "tarik tunai", "penarikan"
+        )
         if (ignoreKeywords.any { lower.contains(it) }) {
-            Log.d(TAG, "Skip ignored notification")
+            AppLog.append(this, "Skip ignored · ${combined.take(40)}")
             return
         }
 
         val secret = prefs.getString("webhook_secret", null)
+        val merchantId = when {
+            packageName.contains("dana") -> "dana"
+            packageName.contains("gopay") || packageName.contains("gojek") -> "gopay"
+            packageName.contains("bri") -> "bri"
+            packageName.contains("interactive") -> "interactive"
+            else -> "unknown"
+        }
+
+        AppLog.append(this, "Detect Rp$amount · $merchantId")
 
         CoroutineScope(Dispatchers.IO).launch {
             sendToWebhook(
@@ -76,7 +89,8 @@ class PaymentNotificationListener : NotificationListenerService() {
                 packageName = packageName,
                 title = title,
                 text = text.ifEmpty { bigText },
-                amount = amount
+                amount = amount,
+                merchantId = merchantId
             )
         }
     }
@@ -106,18 +120,34 @@ class PaymentNotificationListener : NotificationListenerService() {
         packageName: String,
         title: String,
         text: String,
-        amount: Long
+        amount: Long,
+        merchantId: String
     ) {
         try {
             val json = JSONObject().apply {
                 put("packageName", packageName)
+                put("source_package", packageName)
                 put("title", title)
                 put("text", text)
                 put("rawText", text)
                 put("rawTitle", title)
                 put("amount", amount)
-                put("merchantId", if (packageName.contains("dana")) "dana" else "unknown")
+                put("merchantId", merchantId)
+                put("merchant_id", merchantId)
+                put("paymentSource", if (merchantId == "dana") "DANA" else merchantId)
                 put("source", "walzpay-android-listener")
+                put(
+                    "notification", JSONObject()
+                        .put("title", title)
+                        .put("text", text)
+                        .put("source_package", packageName)
+                )
+                put(
+                    "payment", JSONObject()
+                        .put("amount", amount)
+                        .put("currency", "IDR")
+                        .put("payment_source", if (merchantId == "dana") "DANA" else merchantId)
+                )
             }
 
             val body = json.toString()
@@ -133,10 +163,13 @@ class PaymentNotificationListener : NotificationListenerService() {
             }
 
             client.newCall(requestBuilder.build()).execute().use { response ->
-                Log.i(TAG, "Webhook response: ${response.code} ${response.message}")
+                val msg = "Webhook ${response.code} · Rp$amount"
+                Log.i(TAG, msg)
+                AppLog.append(applicationContext, msg)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Gagal kirim webhook", e)
+            AppLog.append(applicationContext, "ERROR: ${e.message}")
         }
     }
 
