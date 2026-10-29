@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { formatRp, formatTime } from "@/lib/format";
 import { apiFetch, setStoredToken } from "@/lib/api";
+import { pushBubble } from "@/components/BubbleToasts";
 
 type Payment = {
   id: string;
@@ -32,6 +33,7 @@ const LS_PUSH = "walzpay_push";
 export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }) {
   const [active, setActive] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [pendingLive, setPendingLive] = useState(0);
   const [forwards, setForwards] = useState<Forward[]>([]);
   const [week, setWeek] = useState<WeekDay[]>([]);
   const [url, setUrl] = useState("");
@@ -41,8 +43,6 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
   const [busy, setBusy] = useState(false);
   const [lastCount, setLastCount] = useState(0);
   const [err, setErr] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ title: string; sub: string } | null>(null);
-  const [toastShow, setToastShow] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -55,12 +55,6 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       }
     }
   }, []);
-
-  function showToast(title: string, sub: string) {
-    setToast({ title, sub });
-    setToastShow(true);
-    setTimeout(() => setToastShow(false), 4200);
-  }
 
   function playBeep() {
     try {
@@ -96,7 +90,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
 
   const refresh = useCallback(async () => {
     try {
-      const [pRes, sRes, fRes, hRes, wRes] = await Promise.all([
+      const [pRes, sRes, fRes, hRes, wRes, oRes] = await Promise.all([
         apiFetch("/api/payments").then(async (r) => ({
           ok: r.ok,
           data: await r.json(),
@@ -114,6 +108,10 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
           data: await r.json(),
         })),
         apiFetch("/api/stats/week").then(async (r) => ({
+          ok: r.ok,
+          data: await r.json(),
+        })),
+        apiFetch("/api/orders?status=pending").then(async (r) => ({
           ok: r.ok,
           data: await r.json(),
         })),
@@ -138,12 +136,25 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       setForwards(fRes.data?.forwards ?? []);
       if (wRes.ok) setWeek(wRes.data.days ?? []);
 
+      // Live pending: exclude expired
+      const now = Date.now();
+      const pendingList = (oRes.data?.orders ?? []) as {
+        status: string;
+        expiresAt?: string | null;
+      }[];
+      const live = pendingList.filter((o) => {
+        if (o.status !== "pending") return false;
+        if (o.expiresAt && new Date(o.expiresAt).getTime() <= now) return false;
+        return true;
+      }).length;
+      setPendingLive(live);
+
       const count = pRes.data.stats?.count ?? 0;
       const latest: Payment | null = pRes.data.stats?.latest ?? null;
       if (lastCount > 0 && count > lastCount && latest) {
         const title = `Pembayaran ${formatRp(latest.amount)}`;
         const sub = `${latest.merchantId}${latest.paymentSource ? " · " + latest.paymentSource : ""}`;
-        showToast(title, sub);
+        pushBubble({ title, sub, tone: "ok" });
         if (sound) playBeep();
         browserNotify(title, sub);
       }
@@ -162,32 +173,44 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
 
   async function toggleService() {
     setBusy(true);
-    await apiFetch("/api/service", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active: !active }),
-    });
-    setBusy(false);
-    refresh();
+    try {
+      await apiFetch("/api/service", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !active }),
+      });
+      pushBubble({
+        title: !active ? "Layanan diaktifkan" : "Layanan dijeda",
+        tone: "ok",
+      });
+      refresh();
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function addForward() {
     if (!url.trim()) return;
     setBusy(true);
-    await apiFetch("/api/forwards", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-    });
-    setUrl("");
-    setBusy(false);
-    refresh();
+    try {
+      await apiFetch("/api/forwards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      setUrl("");
+      pushBubble({ title: "Forward ditambahkan", tone: "ok" });
+      refresh();
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function removeForward(id: string) {
     await apiFetch(`/api/forwards?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
+    pushBubble({ title: "Forward dihapus", tone: "info" });
     refresh();
   }
 
@@ -195,32 +218,41 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
     const v = !sound;
     setSound(v);
     localStorage.setItem(LS_SOUND, v ? "1" : "0");
+    pushBubble({
+      title: v ? "Suara alert ON" : "Suara alert OFF",
+      tone: "info",
+    });
   }
 
   async function togglePush() {
     if (!pushOn) {
       if (typeof Notification === "undefined") {
-        alert("Browser tidak mendukung Notification API");
+        pushBubble({ title: "Browser tidak mendukung notifikasi", tone: "err" });
         return;
       }
       const perm = await Notification.requestPermission();
       if (perm !== "granted") {
-        alert("Izin notifikasi ditolak");
+        pushBubble({ title: "Izin notifikasi ditolak", tone: "err" });
         return;
       }
       setPushOn(true);
       localStorage.setItem(LS_PUSH, "1");
-      showToast("Notifikasi browser ON", "Akan muncul saat uang masuk");
+      pushBubble({
+        title: "Notifikasi browser ON",
+        sub: "Akan muncul saat uang masuk",
+        tone: "ok",
+      });
     } else {
       setPushOn(false);
       localStorage.setItem(LS_PUSH, "0");
+      pushBubble({ title: "Notifikasi browser OFF", tone: "info" });
     }
   }
 
   async function copyHook() {
     try {
       await navigator.clipboard.writeText(hookPath);
-      showToast("URL disalin", hookPath);
+      pushBubble({ title: "URL webhook disalin", tone: "info" });
     } catch {
       prompt("Salin URL:", hookPath);
     }
@@ -230,15 +262,6 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
 
   return (
     <>
-      <div className={`toast-live${toastShow && toast ? " show" : ""}`}>
-        {toast ? (
-          <>
-            <strong>{toast.title}</strong>
-            <span>{toast.sub}</span>
-          </>
-        ) : null}
-      </div>
-
       {err ? (
         <section className="glass dash-alert" role="alert">
           <p style={{ color: "var(--rose)", margin: 0, fontSize: 14, textAlign: "center" }}>
@@ -265,7 +288,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
           </div>
           <div className="stat-box">
             <p className="label">Pending</p>
-            <p className="amount sm">{stats?.pendingOrders ?? 0}</p>
+            <p className="amount sm">{pendingLive}</p>
           </div>
         </div>
       </section>
