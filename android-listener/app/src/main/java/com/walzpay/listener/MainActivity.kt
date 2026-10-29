@@ -38,7 +38,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
         /** Bump when website UI changes so WebView does not keep stale JS/HTML. */
-        const val SITE_CACHE_BUST = "2.4.0"
+        const val SITE_CACHE_BUST = "2.5.0"
     }
 
     private val knownPackages = linkedMapOf(
@@ -80,16 +80,16 @@ class MainActivity : AppCompatActivity() {
         settings.databaseEnabled = true
         settings.allowFileAccess = true
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-        // Always revalidate from network so website deploy appears without reinstall
         settings.cacheMode = WebSettings.LOAD_NO_CACHE
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         }
-        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.4.0"
+        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.5.0"
 
-        // Drop old HTML/JS from previous deploys (Profil still showing Izin panel, etc.)
+        // Always wipe cache so Izin page + SVG nav never show stale UI
         webView.clearCache(true)
         webView.clearHistory()
+        webView.clearFormData()
 
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
@@ -118,7 +118,9 @@ class MainActivity : AppCompatActivity() {
                 webView.clearCache(true)
                 prefs().edit().putString("last_cache_bust", SITE_CACHE_BUST).apply()
             }
-            webView.loadUrl("$SITE_URL/?v=$SITE_CACHE_BUST")
+            // cache-bust query + random so CDN/WebView never serve old JS
+            val ts = System.currentTimeMillis()
+            webView.loadUrl("$SITE_URL/?v=$SITE_CACHE_BUST&t=$ts")
         } else {
             webView.restoreState(savedInstanceState)
         }
@@ -206,7 +208,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        /** Legacy fallback — prefer custom UI via getPackagesJson + setSelectedPackages */
         @JavascriptInterface fun openPackagePicker() { runOnUiThread { showPackagePicker() } }
 
         @JavascriptInterface
@@ -328,7 +329,7 @@ class MainActivity : AppCompatActivity() {
         if (available.isEmpty()) { toast("Tidak ada app terpasang"); return }
         val packages = available.keys.toList()
         val labels = packages.map { "${available[it]}\n$it" }.toTypedArray()
-        // No auto-select: only previously saved ones
+        // No auto-select — only what user previously saved
         val current = prefs().getStringSet("selected_packages", null)?.toMutableSet() ?: mutableSetOf()
         current.retainAll(packages.toSet())
         val checked = packages.map { current.contains(it) }.toBooleanArray()
