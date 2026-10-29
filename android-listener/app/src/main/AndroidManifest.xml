@@ -20,6 +20,10 @@
         <intent>
             <action android:name="android.intent.action.MAIN" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
     </queries>
 
     <application
@@ -31,10 +35,12 @@
         android:theme="@style/Theme.WalzpayListener"
         android:usesCleartextTraffic="true">
 
+        <!-- Tampilan = website penuh; permission = ListenerActivity -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.WalzpayListener">
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -42,19 +48,13 @@
         </activity>
 
         <activity
-            android:name=".LoginActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
-
-        <activity
-            android:name=".HomeActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".ListenerActivity"
             android:exported="false"
-            android:label="Listener"
-            android:parentActivityName=".HomeActivity" />
+            android:label="Izin Android"
+            android:parentActivityName=".MainActivity" />
+
+        <activity android:name=".LoginActivity" android:exported="false" />
+        <activity android:name=".HomeActivity" android:exported="false" />
 
         <service
             android:name=".PaymentNotificationListener"
