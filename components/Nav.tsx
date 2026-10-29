@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 const items = [
@@ -5,7 +7,6 @@ const items = [
   { href: "/riwayat", label: "Riwayat", icon: "☰" },
   { href: "/pesanan", label: "Pesanan", icon: "◇" },
   { href: "/profil", label: "Profil", icon: "☺" },
-  { href: "/pengaturan", label: "Setel", icon: "⚙" },
 ];
 
 export function Nav({ active }: { active: string }) {
