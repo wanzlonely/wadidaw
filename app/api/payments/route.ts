@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { listPayments, clearPayments, getStats } from "@/lib/store";
 import { hasRedisEnv } from "@/lib/redis";
 import { resolveSession } from "@/lib/auth";
+import { setTenant } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,8 +21,9 @@ export async function GET(req: NextRequest) {
       { status: 401 }
     );
   }
+  setTenant(session.userId);
   const [payments, stats] = await Promise.all([
-    listPayments(session.userId),
+    listPayments(),
     getStats(),
   ]);
   return NextResponse.json({ payments, stats });
