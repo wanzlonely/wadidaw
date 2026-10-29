@@ -19,27 +19,31 @@ export const dynamic = "force-dynamic";
 async function resolveAuth(req: NextRequest): Promise<{
   ok: boolean;
   userId: string | null;
+  reason?: string;
 }> {
   const apiKey =
     req.headers.get("x-api-key") ||
     req.headers.get("x-walzpay-key") ||
     "";
+
+  // Preferred: per-merchant API key → tenant scope
   if (apiKey) {
     const uid = await findUserIdByApiKey(apiKey.trim());
     if (uid) return { ok: true, userId: uid };
+    return { ok: false, userId: null, reason: "API key tidak dikenal" };
   }
 
+  // Fallback: global WEBHOOK_SECRET (legacy / single-tenant)
   const secret = process.env.WEBHOOK_SECRET;
   if (secret) {
     const h =
       req.headers.get("x-walzpay-secret") ||
       req.headers.get("x-webhook-secret");
     if (h === secret) return { ok: true, userId: null };
-    if (apiKey) return { ok: false, userId: null };
-    return { ok: false, userId: null };
+    return { ok: false, userId: null, reason: "Secret salah / API key kosong" };
   }
 
-  if (apiKey) return { ok: false, userId: null };
+  // No secret configured and no API key → open (dev only)
   return { ok: true, userId: null };
 }
 
@@ -59,14 +63,17 @@ export async function POST(req: NextRequest) {
   const auth = await resolveAuth(req);
   if (!auth.ok) {
     try {
-      await addLog("warn", "Webhook rejected: bad secret/api key");
+      await addLog("warn", `Webhook rejected: ${auth.reason || "unauthorized"}`);
     } catch {
       /* ignore */
     }
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { error: auth.reason || "Unauthorized" },
+      { status: 401 }
+    );
   }
 
-  // Scope all store operations to this tenant when API key resolved a user
+  // Scope store ops to merchant when API key resolved a user
   if (auth.userId) {
     setTenant(auth.userId);
   }
@@ -121,12 +128,14 @@ export async function POST(req: NextRequest) {
       await attachMatchedOrder(row.id, matched.id);
     }
 
+    // Forward to Telegram / WhatsApp bots / custom URLs (dashboard Forward URL)
     await forwardPayment(row);
 
     return NextResponse.json({
       ok: true,
       payment: row,
       matchedOrder: matched,
+      tenant: auth.userId,
       ms: Date.now() - started,
     });
   } catch (e) {
@@ -144,9 +153,17 @@ export async function GET() {
   return NextResponse.json({
     service: "WALZPAY webhook",
     redis: hasRedisEnv(),
-    method: "POST JSON from android-listener / QRIS Hook",
-    features: ["parse", "dedup", "match pending order", "forward", "multi-tenant api key"],
-    secretHeaders: ["x-webhook-secret", "x-walzpay-secret"],
-    apiKeyHeaders: ["x-api-key", "x-walzpay-key"],
+    method: "POST JSON from android-listener",
+    features: [
+      "parse",
+      "dedup",
+      "match pending order → success",
+      "forward Telegram/WA/custom",
+      "multi-tenant via X-Api-Key",
+    ],
+    requiredHeaders: {
+      multiTenant: "X-Api-Key (merchant API key from website Setel)",
+      optionalSecret: "X-Webhook-Secret",
+    },
   });
 }
