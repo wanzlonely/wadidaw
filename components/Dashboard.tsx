@@ -19,25 +19,32 @@ type Stats = {
   todayCount: number;
   todayAmount: number;
   latest: Payment | null;
+  pendingOrders?: number;
+  successOrders?: number;
 };
 
 type Forward = { id: string; url: string; enabled: boolean };
+type WeekDay = { key: string; label: string; count: number; amount: number };
 
 const LS_MERCHANTS = "walzpay_merchants";
 const LS_SOUND = "walzpay_sound";
+const LS_PUSH = "walzpay_push";
 
 export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }) {
   const [active, setActive] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
   const [forwards, setForwards] = useState<Forward[]>([]);
+  const [week, setWeek] = useState<WeekDay[]>([]);
   const [url, setUrl] = useState("");
   const [merchants, setMerchants] = useState<Record<string, boolean>>({});
   const [sound, setSound] = useState(true);
+  const [pushOn, setPushOn] = useState(false);
   const [hookPath, setHookPath] = useState("/api/webhook");
   const [busy, setBusy] = useState(false);
   const [lastCount, setLastCount] = useState(0);
-  const [redisOk, setRedisOk] = useState<boolean | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ title: string; sub: string } | null>(null);
+  const [toastShow, setToastShow] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -46,23 +53,61 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         const m = localStorage.getItem(LS_MERCHANTS);
         setMerchants(m ? JSON.parse(m) : { dana: true, whatsapp: true });
         setSound(localStorage.getItem(LS_SOUND) !== "0");
+        setPushOn(localStorage.getItem(LS_PUSH) === "1");
       } catch {
         setMerchants({ dana: true, whatsapp: true });
       }
     }
   }, []);
 
+  function showToast(title: string, sub: string) {
+    setToast({ title, sub });
+    setToastShow(true);
+    setTimeout(() => setToastShow(false), 4200);
+  }
+
+  function playBeep() {
+    try {
+      const AC =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AC();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.frequency.value = 880;
+      g.gain.value = 0.08;
+      o.start();
+      setTimeout(() => o.stop(), 180);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function browserNotify(title: string, body: string) {
+    if (!pushOn) return;
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission === "granted") {
+      try {
+        new Notification(title, { body, icon: "/icon-192.png" });
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
   const refresh = useCallback(async () => {
     try {
-      const [pRes, sRes, fRes, hRes] = await Promise.all([
+      const [pRes, sRes, fRes, hRes, wRes] = await Promise.all([
         fetch("/api/payments").then(async (r) => ({ ok: r.ok, data: await r.json() })),
         fetch("/api/service").then(async (r) => ({ ok: r.ok, data: await r.json() })),
         fetch("/api/forwards").then(async (r) => ({ ok: r.ok, data: await r.json() })),
         fetch("/api/health").then(async (r) => ({ ok: r.ok, data: await r.json() })),
+        fetch("/api/stats/week").then(async (r) => ({ ok: r.ok, data: await r.json() })),
       ]);
 
       const rok = Boolean(hRes.data?.redis && hRes.data?.ok);
-      setRedisOk(rok);
       onRedis?.(rok);
 
       if (!pRes.ok) {
@@ -73,33 +118,23 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       setStats(pRes.data.stats);
       setActive(Boolean(sRes.data?.active));
       setForwards(fRes.data?.forwards ?? []);
+      if (wRes.ok) setWeek(wRes.data.days ?? []);
 
       const count = pRes.data.stats?.count ?? 0;
-      if (sound && lastCount > 0 && count > lastCount) {
-        try {
-          const AC =
-            window.AudioContext ||
-            (window as unknown as { webkitAudioContext: typeof AudioContext })
-              .webkitAudioContext;
-          const ctx = new AC();
-          const o = ctx.createOscillator();
-          const g = ctx.createGain();
-          o.connect(g);
-          g.connect(ctx.destination);
-          o.frequency.value = 880;
-          g.gain.value = 0.08;
-          o.start();
-          setTimeout(() => o.stop(), 180);
-        } catch {
-          /* ignore */
-        }
+      const latest: Payment | null = pRes.data.stats?.latest ?? null;
+      if (lastCount > 0 && count > lastCount && latest) {
+        const title = `Pembayaran ${formatRp(latest.amount)}`;
+        const sub = `${latest.merchantId}${latest.paymentSource ? " · " + latest.paymentSource : ""}`;
+        showToast(title, sub);
+        if (sound) playBeep();
+        browserNotify(title, sub);
       }
       setLastCount(count);
     } catch (e) {
       setErr(String(e));
       onRedis?.(false);
     }
-  }, [sound, lastCount, onRedis]);
+  }, [sound, pushOn, lastCount, onRedis]);
 
   useEffect(() => {
     refresh();
@@ -166,21 +201,52 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
     localStorage.setItem(LS_SOUND, v ? "1" : "0");
   }
 
+  async function togglePush() {
+    if (!pushOn) {
+      if (typeof Notification === "undefined") {
+        alert("Browser tidak mendukung Notification API");
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        alert("Izin notifikasi ditolak");
+        return;
+      }
+      setPushOn(true);
+      localStorage.setItem(LS_PUSH, "1");
+      showToast("Notifikasi browser ON", "Akan muncul saat uang masuk");
+    } else {
+      setPushOn(false);
+      localStorage.setItem(LS_PUSH, "0");
+    }
+  }
+
   async function copyHook() {
     try {
       await navigator.clipboard.writeText(hookPath);
-      alert("URL webhook disalin");
+      showToast("URL disalin", hookPath);
     } catch {
       prompt("Salin URL:", hookPath);
     }
   }
 
+  const maxWeek = Math.max(1, ...week.map((d) => d.amount));
+
   return (
     <>
+      <div className={`toast-live${toastShow && toast ? " show" : ""}`}>
+        {toast ? (
+          <>
+            <strong>{toast.title}</strong>
+            <span>{toast.sub}</span>
+          </>
+        ) : null}
+      </div>
+
       {err ? (
         <section className="glass">
           <h2>Error</h2>
-          <p style={{ color: "var(--rose, #fb7185)" }}>{err}</p>
+          <p style={{ color: "var(--rose)" }}>{err}</p>
         </section>
       ) : null}
 
@@ -189,8 +255,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
           <p className="label">Masuk hari ini</p>
           <p className="amount">{formatRp(stats?.todayAmount ?? 0)}</p>
           <p className="muted" style={{ marginTop: 6 }}>
-            {stats?.todayCount ?? 0} transaksi · total semua{" "}
-            {formatRp(stats?.totalAmount ?? 0)}
+            {stats?.todayCount ?? 0} transaksi · total {formatRp(stats?.totalAmount ?? 0)}
           </p>
         </div>
         <hr className="divider" />
@@ -200,9 +265,25 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
             <p className="amount sm">{stats?.todayCount ?? 0}</p>
           </div>
           <div className="stat-box">
-            <p className="label">Semua</p>
-            <p className="amount sm">{stats?.count ?? 0}</p>
+            <p className="label">Pesanan pending</p>
+            <p className="amount sm">{stats?.pendingOrders ?? 0}</p>
           </div>
+        </div>
+      </section>
+
+      <section className="glass">
+        <h2>7 hari terakhir</h2>
+        <div className="week-bars">
+          {week.map((d) => (
+            <div key={d.key} className="bar-col">
+              <div
+                className="bar"
+                style={{ height: `${Math.max(6, (d.amount / maxWeek) * 100)}%` }}
+                title={formatRp(d.amount)}
+              />
+              <span className="bar-label">{d.label}</span>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -234,39 +315,17 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       </section>
 
       <section className="glass">
-        <h2>Uji parser (simulasi)</h2>
-        <p className="muted">
-          Website tidak membaca notifikasi HP. Tombol ini menguji parse + Redis.
-        </p>
-        <button
-          type="button"
-          className="btn btn-block"
-          disabled={busy}
-          onClick={() => testPay("whatsapp")}
-        >
-          Uji notifikasi WhatsApp · Rp25.000
+        <h2>Uji parser</h2>
+        <button type="button" className="btn btn-block" disabled={busy} onClick={() => testPay("dana")}>
+          Uji DANA · Rp15.000
         </button>
-        <button
-          type="button"
-          className="btn btn-block btn-ghost"
-          disabled={busy}
-          onClick={() => testPay("dana")}
-        >
-          Uji payload DANA · Rp15.000
-        </button>
-        <button
-          type="button"
-          className="btn btn-block btn-ghost"
-          disabled={busy}
-          onClick={() => testPay("default")}
-        >
-          Uji generik · Rp10.000
+        <button type="button" className="btn btn-block btn-ghost" disabled={busy} onClick={() => testPay("whatsapp")}>
+          Uji WhatsApp · Rp25.000
         </button>
       </section>
 
       <section className="glass">
         <h2>Webhook HP</h2>
-        <p>Tempel di QRIS Hook / notification forwarder.</p>
         <code className="code">{hookPath}</code>
         <button type="button" className="btn btn-block" onClick={copyHook}>
           Salin URL
@@ -275,21 +334,9 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
 
       <section className="glass">
         <h2>Forward URL</h2>
-        <p>Setelah ke Redis, teruskan ke kasir / n8n / Discord.</p>
         <div className="form-row" style={{ marginTop: 8 }}>
-          <input
-            className="input"
-            placeholder="https://…"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-          <button
-            type="button"
-            className="btn"
-            style={{ marginTop: 0 }}
-            disabled={busy}
-            onClick={addForward}
-          >
+          <input className="input" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
+          <button type="button" className="btn" style={{ marginTop: 0 }} disabled={busy} onClick={addForward}>
             + Tambah
           </button>
         </div>
@@ -298,12 +345,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
             <code className="code" style={{ flex: 1, marginTop: 0 }}>
               {f.url}
             </code>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ marginTop: 0 }}
-              onClick={() => removeForward(f.id)}
-            >
+            <button type="button" className="btn btn-ghost" style={{ marginTop: 0 }} onClick={() => removeForward(f.id)}>
               Hapus
             </button>
           </div>
@@ -312,9 +354,6 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
 
       <section className="glass">
         <h2>Sumber notifikasi</h2>
-        <p className="muted">
-          Preferensi UI. Centang yang kamu pantau di app listener HP.
-        </p>
         {MERCHANTS.map((m) => (
           <label key={m.id} className="check-row">
             <input
@@ -323,8 +362,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
               onChange={() => toggleMerchant(m.id)}
             />
             <span>
-              <strong style={{ color: "var(--ink, #fff)" }}>{m.name}</strong>
-              {" "}
+              <strong style={{ color: "var(--ink)" }}>{m.name}</strong>{" "}
               {m.builtInQrisHook ? (
                 <span className="badge">QRIS Hook</span>
               ) : (
@@ -334,10 +372,6 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
               <span className="muted" style={{ fontSize: "0.75rem" }}>
                 {m.packages.join(", ")}
               </span>
-              <br />
-              <span className="muted" style={{ fontSize: "0.72rem" }}>
-                {m.description}
-              </span>
             </span>
           </label>
         ))}
@@ -346,10 +380,21 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       <section className="glass row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Suara alert</h2>
-          <p>Saat data baru dari Redis</p>
+          <p>Beep saat uang masuk</p>
         </div>
         <label className="switch">
           <input type="checkbox" checked={sound} onChange={toggleSound} />
+          <span className="slider" />
+        </label>
+      </section>
+
+      <section className="glass row">
+        <div>
+          <h2 style={{ marginBottom: 4 }}>Notifikasi browser</h2>
+          <p>{pushOn ? "Aktif" : "Minta izin OS / browser"}</p>
+        </div>
+        <label className="switch">
+          <input type="checkbox" checked={pushOn} onChange={togglePush} />
           <span className="slider" />
         </label>
       </section>
