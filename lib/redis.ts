@@ -27,4 +27,5 @@ export const KEYS = {
   dedup: "walzpay:dedup",
   live: "walzpay:live",
   qrisStatic: "walzpay:qris-static",
+  settings: "walzpay:settings",
 } as const;
