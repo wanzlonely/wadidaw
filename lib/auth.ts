@@ -114,7 +114,7 @@ export async function createUser(input: {
     email,
     displayName: name,
     passwordHash: await hashPassword(input.password),
-    a2fEnabled: true, // default ON — OTP via email
+    a2fEnabled: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -199,11 +199,32 @@ export async function getSession(): Promise<Session | null> {
   }
 }
 
-/** Cookie options ONLY (no name/value) — for NextResponse.cookies.set */
+/** Resolve session from cookie OR x-walz-token / Authorization Bearer (mobile backup). */
+export async function resolveSession(
+  req: { cookies: { get: (n: string) => { value: string } | undefined }; headers: { get: (n: string) => string | null } }
+): Promise<Session | null> {
+  const fromCookie = req.cookies.get(COOKIE_NAME)?.value;
+  if (fromCookie) {
+    const s = await getSessionFromSid(fromCookie);
+    if (s) return s;
+  }
+  const hdr =
+    req.headers.get("x-walz-token") ||
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    "";
+  if (hdr) {
+    return getSessionFromSid(hdr.trim());
+  }
+  return null;
+}
+
+/** Cookie options — always Secure on Vercel/HTTPS */
 export function cookieOpts(maxAge = SESSION_TTL_SEC) {
+  const isProd =
+    process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isProd,
     sameSite: "lax" as const,
     path: "/",
     maxAge,
