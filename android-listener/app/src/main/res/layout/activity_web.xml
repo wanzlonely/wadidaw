@@ -26,18 +26,17 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="Memuat WALZPAY…"
+            android:text="Memuat WALZPAY"
             android:textColor="@color/walz_muted" />
     </LinearLayout>
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/fabListener"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="20dp"
-        android:contentDescription="Pengaturan Listener"
-        android:src="@android:drawable/ic_menu_preferences"
-        android:tint="@color/walz_text" />
+        android:layout_margin="16dp"
+        android:text="Izin Android"
+        android:textColor="@android:color/white" />
 
 </FrameLayout>
