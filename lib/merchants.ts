@@ -6,10 +6,6 @@ export type MerchantDef = {
   builtInQrisHook?: boolean;
 };
 
-/**
- * Sumber notifikasi e-wallet / merchant app.
- * Dipilih sesuai QRIS statis yang di-upload (packageHint).
- */
 export const MERCHANTS: MerchantDef[] = [
   {
     id: "dana",

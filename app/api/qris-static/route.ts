@@ -4,7 +4,7 @@ import {
   addStaticQris,
   removeStaticQris,
   updateStaticQrisPackage,
-} from "@/lib/store";
+} from "@/lib/static-qris";
 import { hasRedisEnv } from "@/lib/redis";
 
 export const runtime = "nodejs";
