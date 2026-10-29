@@ -3,7 +3,7 @@ import Link from "next/link";
 const items = [
   { href: "/", label: "Beranda", icon: "⌂" },
   { href: "/riwayat", label: "Riwayat", icon: "☰" },
-  { href: "/debug", label: "Debug", icon: "⚙" },
+  { href: "/pesanan", label: "Pesanan", icon: "◇" },
   { href: "/pengaturan", label: "Atur", icon: "◆" },
 ];
 
