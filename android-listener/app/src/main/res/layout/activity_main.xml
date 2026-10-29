@@ -12,13 +12,12 @@
         android:orientation="vertical"
         android:padding="20dp">
 
-        <!-- Header brand -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingBottom="6dp">
+            android:paddingBottom="8dp">
 
             <ImageView
                 android:layout_width="48dp"
@@ -36,7 +35,6 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:letterSpacing="0.04"
                     android:text="WALZPAY"
                     android:textColor="@color/walz_text"
                     android:textSize="22sp"
@@ -51,11 +49,10 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Status card -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
             android:padding="16dp">
@@ -91,63 +88,48 @@
                 android:id="@+id/tvShizukuStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Shizuku: …"
+                android:text="Shizuku: ..."
                 android:textColor="@color/walz_muted"
                 android:textSize="13sp" />
         </LinearLayout>
 
-        <!-- Permissions -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
             android:layout_marginBottom="8dp"
-            android:text="Izin & optimasi"
+            android:text="Izin dan optimasi"
             android:textColor="@color/walz_muted"
             android:textSize="12sp"
             android:textStyle="bold" />
 
-        <com.google.android.material.button.MaterialButton
+        <Button
             android:id="@+id/btnOpenNotificationAccess"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="1. Izinkan akses notifikasi"
-            app:cornerRadius="14dp" />
+            android:text="1. Izinkan akses notifikasi" />
 
-        <com.google.android.material.button.MaterialButton
+        <Button
             android:id="@+id/btnBattery"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="2. Tanpa batasan baterai"
-            android:textColor="@color/walz_text"
-            app:cornerRadius="14dp"
-            app:strokeColor="@color/walz_card_stroke" />
+            android:text="2. Tanpa batasan baterai" />
 
-        <com.google.android.material.button.MaterialButton
+        <Button
             android:id="@+id/btnAutostart"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="3. Autostart (Xiaomi/OPPO/Vivo/…)"
-            android:textColor="@color/walz_text"
-            app:cornerRadius="14dp"
-            app:strokeColor="@color/walz_card_stroke" />
+            android:text="3. Autostart (Xiaomi/OPPO/Vivo)" />
 
-        <com.google.android.material.button.MaterialButton
+        <Button
             android:id="@+id/btnShizuku"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="4. Izinkan Shizuku (opsional)"
-            android:textColor="@color/walz_text"
-            app:cornerRadius="14dp"
-            app:strokeColor="@color/walz_card_stroke" />
+            android:text="4. Izinkan Shizuku (opsional)" />
 
-        <!-- Connection card -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -178,7 +160,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:background="@drawable/bg_input"
-                android:hint="https://…vercel.app/api/webhook"
+                android:hint="https://domain.vercel.app/api/webhook"
                 android:inputType="textUri"
                 android:padding="12dp"
                 android:textColor="@color/walz_text"
@@ -189,7 +171,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="API Key (wajib · dari Setel website)"
+                android:text="API Key (wajib dari Setel website)"
                 android:textColor="@color/walz_muted"
                 android:textSize="12sp" />
 
@@ -229,25 +211,19 @@
                 android:textSize="14sp" />
         </LinearLayout>
 
-        <!-- Sources -->
-        <com.google.android.material.button.MaterialButton
+        <Button
             android:id="@+id/btnPickPackages"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:text="Pilih sumber notifikasi"
-            android:textColor="@color/walz_text"
-            app:cornerRadius="14dp"
-            app:strokeColor="@color/walz_primary" />
+            android:text="Pilih sumber notifikasi" />
 
         <TextView
             android:id="@+id/tvSelectedPackages"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="6dp"
-            android:paddingBottom="4dp"
-            android:text="Default: DANA, GoPay, OVO, Shopee, WA…"
+            android:text="Default: DANA, GoPay, OVO, Shopee, WA"
             android:textColor="@color/walz_muted"
             android:textSize="12sp" />
 
@@ -256,8 +232,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:background="@drawable/bg_card"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
+            android:orientation="vertical"
             android:padding="12dp">
 
             <com.google.android.material.switchmaterial.SwitchMaterial
@@ -268,29 +243,24 @@
                 android:textColor="@color/walz_text" />
         </LinearLayout>
 
-        <com.google.android.material.button.MaterialButton
+        <Button
             android:id="@+id/btnSave"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:text="Simpan pengaturan"
-            app:backgroundTint="@color/walz_primary"
-            app:cornerRadius="14dp" />
+            android:text="Simpan pengaturan" />
 
-        <com.google.android.material.button.MaterialButton
+        <Button
             android:id="@+id/btnClearLogs"
-            style="@style/Widget.MaterialComponents.Button.TextButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Bersihkan log"
-            android:textColor="@color/walz_muted" />
-
-        <!-- Logs -->
-        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:text="Bersihkan log" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:layout_marginBottom="24dp"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
