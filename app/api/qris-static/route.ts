@@ -6,16 +6,21 @@ import {
   updateStaticQrisPackage,
 } from "@/lib/static-qris";
 import { hasRedisEnv } from "@/lib/redis";
+import { requireUser } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json(
       { error: "Redis not configured", items: [] },
       { status: 503 }
     );
+  }
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error, items: [] }, { status: auth.status });
   }
   const items = await listStaticQris();
   return NextResponse.json({ items, max: 3 });
@@ -24,6 +29,10 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
+  }
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   let body: Record<string, unknown>;
   try {
@@ -60,6 +69,10 @@ export async function PATCH(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
   }
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -83,6 +96,10 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
+  }
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   const id = req.nextUrl.searchParams.get("id");
   if (!id) {
