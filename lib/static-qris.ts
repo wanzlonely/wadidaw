@@ -1,4 +1,5 @@
 import { getRedis, KEYS } from "./redis";
+import { K } from "./tenant";
 import { parseQrisMeta, isLikelyQris } from "./qris-convert";
 
 export type StaticQris = {
@@ -21,7 +22,7 @@ async function nextId(prefix: string) {
 
 export async function listStaticQris(): Promise<StaticQris[]> {
   const redis = getRedis();
-  const raw = await redis.get(KEYS.qrisStatic);
+  const raw = await redis.get(K().qrisStatic);
   if (!raw) return [];
   if (typeof raw === "string") return JSON.parse(raw) as StaticQris[];
   return raw as StaticQris[];
@@ -29,7 +30,7 @@ export async function listStaticQris(): Promise<StaticQris[]> {
 
 async function saveStaticQris(list: StaticQris[]) {
   const redis = getRedis();
-  await redis.set(KEYS.qrisStatic, JSON.stringify(list));
+  await redis.set(K().qrisStatic, JSON.stringify(list));
 }
 
 export async function addStaticQris(input: {
