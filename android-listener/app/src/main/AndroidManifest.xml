@@ -1,28 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Jaringan -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!-- Foreground + notifikasi status -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- Restart setelah boot / paket diganti -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-
-    <!-- Baterai + alarm andal -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
-
-    <!-- Daftar semua app untuk picker sumber notifikasi (sideload) -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
-
-    <!-- Shizuku (opsional — jika app Shizuku terpasang) -->
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
     <queries>
@@ -42,9 +31,9 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@android:drawable/ic_menu_info_details"
-        android:label="WALZPAY Listener"
-        android:roundIcon="@android:drawable/ic_menu_info_details"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.WalzpayListener"
         android:usesCleartextTraffic="true">
@@ -93,7 +82,6 @@
             android:name=".WatchdogReceiver"
             android:exported="false" />
 
-        <!-- Shizuku provider (opsional) -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"
