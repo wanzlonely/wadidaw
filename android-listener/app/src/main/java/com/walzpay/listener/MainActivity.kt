@@ -38,7 +38,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
-        const val SITE_CACHE_BUST = "3.0.0"
+        const val SITE_CACHE_BUST = "3.0.1"
     }
 
     private val knownPackages = linkedMapOf(
@@ -84,9 +84,8 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         }
-        settings.userAgentString = settings.userAgentString + " WalzpayApp/3.0.0"
+        settings.userAgentString = settings.userAgentString + " WalzpayApp/3.0.1"
 
-        // Always wipe WebView cache so UI from Vercel is never stale
         webView.clearCache(true)
         webView.clearHistory()
         webView.clearFormData()
@@ -149,6 +148,7 @@ class MainActivity : AppCompatActivity() {
             j.put("push", hasPostNotifications())
             j.put("shizuku", try { ShizukuHelper.statusText() } catch (_: Throwable) { "n/a" })
             j.put("packages", prefs().getStringSet("selected_packages", null)?.size ?: 0)
+            j.put("autostart", prefs().getBoolean("autostart_done", false))
             return j.toString()
         }
 
@@ -156,21 +156,14 @@ class MainActivity : AppCompatActivity() {
         fun openNotificationAccess() {
             runOnUiThread {
                 startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                toast("Aktifkan WALZPAY di daftar akses notifikasi")
             }
         }
 
         @JavascriptInterface
         fun requestPostNotifications() {
             runOnUiThread {
-                if (Build.VERSION.SDK_INT < 33) {
-                    toast("Notifikasi aplikasi sudah tersedia di Android ini")
-                    return@runOnUiThread
-                }
-                if (hasPostNotifications()) {
-                    toast("Notifikasi aplikasi sudah diizinkan")
-                    return@runOnUiThread
-                }
+                if (Build.VERSION.SDK_INT < 33) return@runOnUiThread
+                if (hasPostNotifications()) return@runOnUiThread
                 requestNotifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
@@ -179,15 +172,23 @@ class MainActivity : AppCompatActivity() {
         fun openBattery() { runOnUiThread { OemHelper.openBatterySettings(this@MainActivity) } }
 
         @JavascriptInterface
-        fun openAutostart() { runOnUiThread { OemHelper.openAutostartSettings(this@MainActivity) } }
+        fun openAutostart() {
+            runOnUiThread {
+                prefs().edit().putBoolean("autostart_done", true).apply()
+                OemHelper.openAutostartSettings(this@MainActivity)
+            }
+        }
+
+        @JavascriptInterface
+        fun markAutostartDone() {
+            prefs().edit().putBoolean("autostart_done", true).apply()
+        }
 
         @JavascriptInterface
         fun openOverlay() {
             runOnUiThread {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    if (Settings.canDrawOverlays(this@MainActivity)) {
-                        toast("Overlay sudah diizinkan"); return@runOnUiThread
-                    }
+                    if (Settings.canDrawOverlays(this@MainActivity)) return@runOnUiThread
                     startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
                 }
             }
@@ -198,7 +199,7 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 when {
                     !ShizukuHelper.isAvailable() -> toast("Pasang dan jalankan app Shizuku dulu")
-                    ShizukuHelper.isGranted() -> toast("Shizuku sudah terhubung")
+                    ShizukuHelper.isGranted() -> { /* already connected */ }
                     else -> ShizukuHelper.requestPermission()
                 }
             }
@@ -231,10 +232,7 @@ class MainActivity : AppCompatActivity() {
                     if (s.isNotEmpty()) set.add(s)
                 }
                 prefs().edit().putStringSet("selected_packages", set).apply()
-                runOnUiThread { toast("Sumber disimpan (${set.size})") }
-            } catch (e: Exception) {
-                runOnUiThread { toast("Gagal simpan sumber: ${e.message}") }
-            }
+            } catch (_: Exception) {}
         }
 
         @JavascriptInterface
@@ -249,12 +247,10 @@ class MainActivity : AppCompatActivity() {
                     }
                     p.edit().putBoolean("listener_enabled", true).apply()
                     startKeepAlive()
-                    toast("Listener aktif")
                 } else {
                     p.edit().putBoolean("listener_enabled", false).apply()
                     stopService(Intent(this@MainActivity, KeepAliveService::class.java))
                     WatchdogReceiver.cancel(this@MainActivity)
-                    toast("Listener dimatikan")
                 }
             }
         }
@@ -267,7 +263,6 @@ class MainActivity : AppCompatActivity() {
                     p.edit().putString("webhook_url", "$SITE_URL/api/webhook").apply()
                 }
                 if (p.getBoolean("listener_enabled", false)) startKeepAlive()
-                toast("Pengaturan disimpan")
             }
         }
 
@@ -336,7 +331,6 @@ class MainActivity : AppCompatActivity() {
             }
             .setPositiveButton("Simpan") { _, _ ->
                 prefs().edit().putStringSet("selected_packages", HashSet(current)).apply()
-                toast("Sumber disimpan (${current.size})")
             }
             .setNegativeButton("Batal", null)
             .show()
