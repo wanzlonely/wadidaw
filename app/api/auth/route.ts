@@ -4,7 +4,6 @@ import {
   verifyUserPassword,
   createSession,
   destroySession,
-  getSessionFromSid,
   resolveSession,
   cookieOpts,
   COOKIE_NAME,
@@ -34,7 +33,24 @@ function setSessionCookie(res: NextResponse, sid: string) {
 }
 
 function clearSessionCookie(res: NextResponse) {
-  res.cookies.set(COOKIE_NAME, "", cookieOpts(0));
+  res.cookies.set(COOKIE_NAME, "", {
+    ...cookieOpts(0),
+    maxAge: 0,
+  });
+}
+
+/** Also destroy session from x-walz-token header if present */
+async function destroyAllSessions(req: NextRequest) {
+  const fromCookie = getSid(req);
+  if (fromCookie) await destroySession(fromCookie);
+  const hdr =
+    req.headers.get("x-walz-token") ||
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    "";
+  const token = hdr.trim();
+  if (token && token !== fromCookie) {
+    await destroySession(token);
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -53,6 +69,9 @@ export async function GET(req: NextRequest) {
       email: session.email,
       displayName: session.displayName,
       a2fEnabled: user?.a2fEnabled ?? false,
+      hasPassword: Boolean(user?.passwordHash),
+      createdAt: user?.createdAt ?? null,
+      updatedAt: user?.updatedAt ?? null,
     },
   });
 }
@@ -70,6 +89,30 @@ export async function POST(req: NextRequest) {
   }
 
   const action = String(body.action || "");
+
+  // ── Profile / me (session or token) ──────────────────────────────
+  if (action === "me") {
+    const session = await resolveSession(req);
+    if (!session) {
+      return NextResponse.json({ error: "Belum login" }, { status: 401 });
+    }
+    const user = await findUserById(session.userId);
+    if (!user) {
+      return NextResponse.json({ error: "User tidak ditemukan" }, { status: 404 });
+    }
+    return NextResponse.json({
+      ok: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        a2fEnabled: user.a2fEnabled,
+        hasPassword: Boolean(user.passwordHash),
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
+    });
+  }
 
   if (action === "register") {
     const email = String(body.email || "");
@@ -193,11 +236,61 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "logout") {
-    const sid = getSid(req);
-    if (sid) await destroySession(sid);
+    await destroyAllSessions(req);
     const res = NextResponse.json({ ok: true });
     clearSessionCookie(res);
     return res;
+  }
+
+  if (action === "change_password") {
+    const session = await resolveSession(req);
+    if (!session) {
+      return NextResponse.json({ error: "Belum login" }, { status: 401 });
+    }
+    const oldPassword = String(body.oldPassword || "");
+    const newPassword = String(body.newPassword || body.password || "");
+    if (newPassword.length < 6) {
+      return NextResponse.json(
+        { error: "Password baru minimal 6 karakter" },
+        { status: 400 }
+      );
+    }
+    const user = await findUserById(session.userId);
+    if (!user) {
+      return NextResponse.json({ error: "User tidak ditemukan" }, { status: 404 });
+    }
+    const oldHash = await hashPassword(oldPassword);
+    if (user.passwordHash && oldHash !== user.passwordHash) {
+      return NextResponse.json({ error: "Password lama salah" }, { status: 401 });
+    }
+    const updated = await updateUser(session.userId, {
+      passwordHash: await hashPassword(newPassword),
+    });
+    if (!updated) {
+      return NextResponse.json({ error: "Gagal update" }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "enable_a2f" || action === "disable_a2f") {
+    const session = await resolveSession(req);
+    if (!session) {
+      return NextResponse.json({ error: "Belum login" }, { status: 401 });
+    }
+    const enable = action === "enable_a2f";
+    const user = await updateUser(session.userId, { a2fEnabled: enable });
+    if (!user) {
+      return NextResponse.json({ error: "User tidak ditemukan" }, { status: 404 });
+    }
+    return NextResponse.json({
+      ok: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        a2fEnabled: user.a2fEnabled,
+      },
+    });
   }
 
   if (action === "update_profile") {
