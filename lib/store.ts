@@ -32,6 +32,7 @@ export type Order = {
   mode: "dynamic" | "static";
   qrisStaticId?: string | null;
   dynamicQris?: string | null;
+  adminFee?: number;
 };
 
 export type DebugLog = {
@@ -149,6 +150,7 @@ export async function createOrder(input: {
   note?: string | null;
   expiresInMinutes?: number;
   dynamic?: boolean;
+  adminFee?: number;
 }): Promise<Order> {
   const redis = getRedis();
   const now = new Date();
@@ -160,15 +162,16 @@ export async function createOrder(input: {
 
   const base = Math.round(input.amount);
   const useDynamic = input.dynamic !== false;
+  const adminFee = Math.max(0, Math.round(input.adminFee ?? 0));
 
   let uniqueCode = 0;
-  let totalAmount = base;
+  let totalAmount = base + adminFee;
   let mode: Order["mode"] = "static";
 
   if (useDynamic) {
     const taken = await takenUniqueCodes();
     uniqueCode = allocateUniqueCode(taken);
-    totalAmount = buildTotalAmount(base, uniqueCode);
+    totalAmount = buildTotalAmount(base, uniqueCode) + adminFee;
     mode = "dynamic";
   }
 
@@ -187,6 +190,7 @@ export async function createOrder(input: {
     matchedPaymentId: null,
     expiresAt,
     mode,
+    adminFee,
   };
 
   await redis.lpush(KEYS.orders, JSON.stringify(row));
@@ -194,9 +198,9 @@ export async function createOrder(input: {
   await addLog(
     "info",
     mode === "dynamic"
-      ? `Order dynamic pending base Rp${row.amount} → bayar Rp${row.totalAmount} (kode ${row.uniqueCode})`
+      ? `Order dynamic pending base Rp${row.amount} +kode ${row.uniqueCode} +adm ${adminFee} → bayar Rp${row.totalAmount}`
       : `Order static pending Rp${row.amount}`,
-    { id: row.id, token: row.token, totalAmount: row.totalAmount }
+    { id: row.id, token: row.token, totalAmount: row.totalAmount, adminFee }
   );
   return row;
 }
