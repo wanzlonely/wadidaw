@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addPayment, forwardPayment, getServiceActive } from "@/lib/store";
+import {
+  addPayment,
+  attachMatchedOrder,
+  forwardPayment,
+  getServiceActive,
+  matchPendingOrder,
+} from "@/lib/store";
 import { parsePaymentBody } from "@/lib/parse-payment";
 import { hasRedisEnv } from "@/lib/redis";
 
@@ -61,6 +67,9 @@ export async function POST(req: NextRequest) {
   }
 
   const row = await addPayment(parsed.data);
+  const matched = await matchPendingOrder(row.amount, row.id);
+  if (matched) await attachMatchedOrder(row.id, matched.id);
   await forwardPayment(row);
-  return NextResponse.json({ ok: true, kind, payment: row });
+
+  return NextResponse.json({ ok: true, kind, payment: row, matchedOrder: matched });
 }
