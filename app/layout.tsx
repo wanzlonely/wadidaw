@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { AuthGuard } from "@/components/AuthGuard";
+import { BubbleToasts } from "@/components/BubbleToasts";
 
 export const metadata: Metadata = {
   title: "WALZPAY — Liquid Glass Dashboard",
-  description: "QRIS webhook · pesanan auto-settle · Redis · PWA",
+  description: "QRIS webhook, pesanan auto-settle, Redis, PWA",
   applicationName: "WALZPAY",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -27,7 +29,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id">
-      <body>{children}</body>
+      <body>
+        <AuthGuard>
+          {children}
+          <BubbleToasts />
+        </AuthGuard>
+      </body>
     </html>
   );
 }
