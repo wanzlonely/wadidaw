@@ -16,16 +16,12 @@
 
     <queries>
         <package android:name="moe.shizuku.privileged.api" />
-        <package android:name="id.dana" />
-        <package android:name="id.dana.kasir" />
-        <package android:name="com.gojek.app" />
-        <package android:name="com.gojek.gopaymerchant" />
-        <package android:name="ovo.id" />
-        <package android:name="com.shopee.id" />
-        <package android:name="com.whatsapp" />
-        <package android:name="com.whatsapp.w4b" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
         </intent>
     </queries>
 
@@ -38,15 +34,24 @@
         android:theme="@style/Theme.WalzpayListener"
         android:usesCleartextTraffic="true">
 
+        <!-- Shell: seluruh website (login, beranda, pesanan, riwayat, profil, setel) -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop">
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Native: izin notifikasi, webhook, sumber app -->
+        <activity
+            android:name=".ListenerActivity"
+            android:exported="false"
+            android:label="Listener"
+            android:parentActivityName=".MainActivity" />
 
         <service
             android:name=".PaymentNotificationListener"
