@@ -17,6 +17,8 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     webhookSecret: s.webhookSecret,
     feeType: s.feeType,
     feeValue: s.feeValue,
+    feeMin: (s as {feeMin?:number}).feeMin ?? 1,
+    feeMax: (s as {feeMax?:number}).feeMax ?? 99,
     defaultExpiryMinutes: s.defaultExpiryMinutes,
     enabledMerchants: s.enabledMerchants ?? [],
     hasPassword: Boolean(s.passwordHash),
@@ -74,6 +76,8 @@ export async function POST(req: NextRequest) {
     patch.webhookSecret = String(body.webhookSecret);
   if (body.feeType != null) patch.feeType = String(body.feeType);
   if (body.feeValue != null) patch.feeValue = Number(body.feeValue);
+  if (body.feeMin != null) (patch as {feeMin?:number}).feeMin = Number(body.feeMin);
+  if (body.feeMax != null) (patch as {feeMax?:number}).feeMax = Number(body.feeMax);
   if (body.defaultExpiryMinutes != null)
     patch.defaultExpiryMinutes = Number(body.defaultExpiryMinutes);
   if (Array.isArray(body.enabledMerchants)) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createOrder, listOrders, cancelOrder } from "@/lib/store";
+import { createOrder, listOrders, cancelOrder, clearAllOrders, purgeOldOrders, sweepExpiredOrders } from "@/lib/store";
 import { getStaticQris } from "@/lib/static-qris";
 import { convertStaticToDynamic, computeAdminFee } from "@/lib/qris-convert";
 import { getSettings } from "@/lib/settings";
@@ -48,6 +48,15 @@ export async function POST(req: NextRequest) {
   try {
     const settings = await getSettings();
 
+    const minFee =
+      body.minFee != null && Number.isFinite(Number(body.minFee))
+        ? Math.max(0, Math.round(Number(body.minFee)))
+        : Math.max(0, Math.round((settings as { feeMin?: number }).feeMin ?? 1));
+    const maxFee =
+      body.maxFee != null && Number.isFinite(Number(body.maxFee))
+        ? Math.max(minFee, Math.round(Number(body.maxFee)))
+        : Math.max(minFee, Math.round((settings as { feeMax?: number }).feeMax ?? 99));
+
     let adminFee = 0;
     if (body.adminFee != null && Number.isFinite(Number(body.adminFee))) {
       adminFee = Math.max(0, Math.round(Number(body.adminFee)));
@@ -66,7 +75,7 @@ export async function POST(req: NextRequest) {
     const expiresInMinutes =
       body.expiresInMinutes != null
         ? Number(body.expiresInMinutes)
-        : settings.defaultExpiryMinutes || 30;
+        : settings.defaultExpiryMinutes || 15;
 
     const order = await createOrder({
       amount,
@@ -76,6 +85,8 @@ export async function POST(req: NextRequest) {
       expiresInMinutes,
       dynamic: body.dynamic === false ? false : true,
       adminFee,
+      minFee,
+      maxFee,
     });
 
     const qrisStaticId =
@@ -121,6 +132,15 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
+  }
+  if (req.nextUrl.searchParams.get("all") === "1") {
+    const n = await clearAllOrders();
+    return NextResponse.json({ ok: true, cleared: n });
+  }
+  if (req.nextUrl.searchParams.get("purge") === "1") {
+    await sweepExpiredOrders();
+    const n = await purgeOldOrders(24);
+    return NextResponse.json({ ok: true, purged: n });
   }
   const id = req.nextUrl.searchParams.get("id");
   if (!id) {
