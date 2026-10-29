@@ -28,10 +28,12 @@ type StaticQris = {
   createdAt: string;
 };
 
+type BusyKey = "fee" | "name" | "secret" | "qris" | "rotate" | null;
+
 export function ProfileClient() {
   const [s, setS] = useState<Settings | null>(null);
   const [templates, setTemplates] = useState<StaticQris[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<BusyKey>(null);
   const [scanning, setScanning] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [hookPath, setHookPath] = useState("/api/webhook");
@@ -104,23 +106,26 @@ export function ProfileClient() {
 
   async function saveStatic() {
     if (!preview) return;
-    setBusy(true);
-    const res = await apiFetch("/api/qris-static", {
-      method: "POST",
-      body: JSON.stringify({
-        qrisString: preview.qrisString,
-        label: preview.merchantName,
-      }),
-    });
-    const data = await res.json();
-    setBusy(false);
-    if (!res.ok) {
-      setErr(data.error || "Gagal simpan QRIS");
-      return;
+    setBusy("qris");
+    try {
+      const res = await apiFetch("/api/qris-static", {
+        method: "POST",
+        body: JSON.stringify({
+          qrisString: preview.qrisString,
+          label: preview.merchantName,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data.error || "Gagal simpan QRIS");
+        return;
+      }
+      setPreview(null);
+      pushBubble({ title: "QRIS disimpan", sub: "Perubahan telah disimpan", tone: "ok" });
+      load();
+    } finally {
+      setBusy(null);
     }
-    setPreview(null);
-    pushBubble({ title: "QRIS disimpan", tone: "ok" });
-    load();
   }
 
   async function deleteStatic(id: string) {
@@ -128,58 +133,104 @@ export function ProfileClient() {
     await apiFetch(`/api/qris-static?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
+    pushBubble({ title: "QRIS dihapus", tone: "info" });
     load();
   }
 
-  async function save() {
+  async function saveSettings(key: BusyKey, payload: Record<string, unknown>) {
+    if (!s) return;
+    setBusy(key);
+    setErr(null);
+    try {
+      const res = await apiFetch("/api/settings", {
+        method: "POST",
+        body: JSON.stringify({ action: "update", ...payload }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data.error || "Gagal simpan");
+        pushBubble({ title: "Gagal menyimpan", sub: data.error || "Coba lagi", tone: "err" });
+        return;
+      }
+      setS({
+        ...data.settings,
+        feeType: "random",
+        enabledMerchants: data.settings.enabledMerchants ?? [],
+        feeMin: data.settings.feeMin ?? s.feeMin,
+        feeMax: data.settings.feeMax ?? s.feeMax,
+      });
+      setFeeMinStr(String(data.settings.feeMin ?? s.feeMin));
+      setFeeMaxStr(String(data.settings.feeMax ?? s.feeMax));
+      pushBubble({ title: "Perubahan disimpan", sub: "Pengaturan berhasil diperbarui", tone: "ok" });
+    } catch {
+      setErr("Koneksi gagal");
+      pushBubble({ title: "Koneksi gagal", tone: "err" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function saveFee() {
     if (!s) return;
     const min = Math.max(0, Number(feeMinStr) || 0);
     const max = Math.max(min, Number(feeMaxStr) || 0);
-    setBusy(true);
-    const res = await apiFetch("/api/settings", {
-      method: "POST",
-      body: JSON.stringify({
-        action: "update",
-        displayName: s.displayName,
-        webhookSecret: s.webhookSecret,
-        feeType: "random",
-        feeValue: 0,
-        feeMin: min,
-        feeMax: max,
-        defaultExpiryMinutes: s.defaultExpiryMinutes,
-        enabledMerchants: s.enabledMerchants,
-      }),
-    });
-    const data = await res.json();
-    setBusy(false);
-    if (!res.ok) {
-      setErr(data.error || "Gagal simpan");
-      return;
-    }
-    setS({
-      ...data.settings,
+    await saveSettings("fee", {
+      displayName: s.displayName,
+      webhookSecret: s.webhookSecret,
       feeType: "random",
-      enabledMerchants: data.settings.enabledMerchants ?? [],
-      feeMin: data.settings.feeMin ?? min,
-      feeMax: data.settings.feeMax ?? max,
+      feeValue: 0,
+      feeMin: min,
+      feeMax: max,
+      defaultExpiryMinutes: s.defaultExpiryMinutes,
+      enabledMerchants: s.enabledMerchants,
     });
-    setFeeMinStr(String(data.settings.feeMin ?? min));
-    setFeeMaxStr(String(data.settings.feeMax ?? max));
-    pushBubble({ title: "Pengaturan disimpan", tone: "ok" });
+  }
+
+  async function saveName() {
+    if (!s) return;
+    await saveSettings("name", {
+      displayName: s.displayName,
+      webhookSecret: s.webhookSecret,
+      feeType: "random",
+      feeValue: 0,
+      feeMin: s.feeMin,
+      feeMax: s.feeMax,
+      defaultExpiryMinutes: s.defaultExpiryMinutes,
+      enabledMerchants: s.enabledMerchants,
+    });
+  }
+
+  async function saveSecret() {
+    if (!s) return;
+    await saveSettings("secret", {
+      displayName: s.displayName,
+      webhookSecret: s.webhookSecret,
+      feeType: "random",
+      feeValue: 0,
+      feeMin: s.feeMin,
+      feeMax: s.feeMax,
+      defaultExpiryMinutes: s.defaultExpiryMinutes,
+      enabledMerchants: s.enabledMerchants,
+    });
   }
 
   async function rotateKey() {
     if (!confirm("Generate API key baru? Key lama tidak bisa dipakai.")) return;
-    setBusy(true);
-    const res = await apiFetch("/api/settings", {
-      method: "POST",
-      body: JSON.stringify({ action: "rotate_api_key" }),
-    });
-    const data = await res.json();
-    setBusy(false);
-    if (res.ok) {
-      setS((prev) => (prev ? { ...prev, apiKey: data.apiKey } : prev));
-      pushBubble({ title: "API key baru dibuat", tone: "ok" });
+    setBusy("rotate");
+    try {
+      const res = await apiFetch("/api/settings", {
+        method: "POST",
+        body: JSON.stringify({ action: "rotate_api_key" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setS((prev) => (prev ? { ...prev, apiKey: data.apiKey } : prev));
+        pushBubble({ title: "API key baru dibuat", sub: "Perubahan telah disimpan", tone: "ok" });
+      } else {
+        pushBubble({ title: "Gagal rotate key", tone: "err" });
+      }
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -248,7 +299,7 @@ export function ProfileClient() {
             <button
               type="button"
               className="btn btn-block btn-press"
-              disabled={scanning || busy}
+              disabled={scanning || busy !== null}
               onClick={() => fileRef.current?.click()}
             >
               {scanning ? "Membaca QR…" : "Upload gambar QRIS"}
@@ -275,15 +326,16 @@ export function ProfileClient() {
                   type="button"
                   className="btn btn-block btn-press"
                   style={{ marginTop: 12 }}
-                  disabled={busy}
+                  disabled={busy === "qris"}
                   onClick={saveStatic}
                 >
-                  Simpan QRIS
+                  {busy === "qris" ? "Menyimpan…" : "Simpan QRIS"}
                 </button>
                 <button
                   type="button"
                   className="btn btn-block btn-ghost btn-press"
                   style={{ marginTop: 8 }}
+                  disabled={busy === "qris"}
                   onClick={() => setPreview(null)}
                 >
                   Batal
@@ -360,12 +412,12 @@ export function ProfileClient() {
         </select>
         <button
           type="button"
-          className="btn btn-block btn-press"
+          className="btn btn-primary btn-block btn-press"
           style={{ marginTop: 12 }}
-          disabled={busy}
-          onClick={save}
+          disabled={busy === "fee"}
+          onClick={saveFee}
         >
-          Simpan
+          {busy === "fee" ? "Menyimpan…" : "Simpan"}
         </button>
       </section>
 
@@ -379,12 +431,12 @@ export function ProfileClient() {
         />
         <button
           type="button"
-          className="btn btn-block btn-press"
+          className="btn btn-primary btn-block btn-press"
           style={{ marginTop: 12 }}
-          disabled={busy}
-          onClick={save}
+          disabled={busy === "name"}
+          onClick={saveName}
         >
-          Simpan nama
+          {busy === "name" ? "Menyimpan…" : "Simpan nama"}
         </button>
       </section>
 
@@ -420,12 +472,12 @@ export function ProfileClient() {
         />
         <button
           type="button"
-          className="btn btn-block btn-press"
+          className="btn btn-primary btn-block btn-press"
           style={{ marginTop: 10 }}
-          disabled={busy}
-          onClick={save}
+          disabled={busy === "secret"}
+          onClick={saveSecret}
         >
-          Simpan secret
+          {busy === "secret" ? "Menyimpan…" : "Simpan secret"}
         </button>
       </section>
 
@@ -452,10 +504,10 @@ export function ProfileClient() {
           <button
             type="button"
             className="btn btn-ghost btn-press"
-            disabled={busy}
+            disabled={busy === "rotate"}
             onClick={rotateKey}
           >
-            Rotate
+            {busy === "rotate" ? "…" : "Rotate"}
           </button>
         </div>
       </section>
