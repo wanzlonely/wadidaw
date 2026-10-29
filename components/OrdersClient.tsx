@@ -76,7 +76,8 @@ export function OrdersClient() {
         const found = (allData.orders ?? []).find((o: Order) => o.id === id);
         if (found?.status === "success") {
           setActive({ ...found });
-        } else if (!found || found.status !== "pending") {
+        } else {
+          // expired / cancelled / hilang → sembunyikan, jangan tampil 0:00
           setActive(null);
           activeIdRef.current = null;
         }
@@ -96,16 +97,23 @@ export function OrdersClient() {
       return;
     }
     const tick = () => {
-      const left = Math.max(
-        0,
-        Math.floor((new Date(active.expiresAt!).getTime() - Date.now()) / 1000)
+      const left = Math.floor(
+        (new Date(active.expiresAt!).getTime() - Date.now()) / 1000
       );
+      if (left <= 0) {
+        // kedaluwarsa: hilangkan dari layar aktif
+        setRemainSec(null);
+        setActive(null);
+        activeIdRef.current = null;
+        load();
+        return;
+      }
       setRemainSec(left);
     };
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [active?.expiresAt, active?.status, active?.id]);
+  }, [active?.expiresAt, active?.status, active?.id, load]);
 
   async function create() {
     const n = Number(String(amount).replace(/\D/g, ""));
@@ -162,7 +170,13 @@ export function OrdersClient() {
     }, 420);
   }
 
-  const pending = orders.filter((o) => o.status === "pending");
+  // hanya order pending yang masih punya sisa waktu
+  const pending = orders.filter((o) => {
+    if (o.status !== "pending") return false;
+    if (!o.expiresAt) return true;
+    return new Date(o.expiresAt).getTime() > Date.now();
+  });
+
   const showOrder =
     active && (active.status === "pending" || active.status === "success")
       ? active
@@ -171,13 +185,13 @@ export function OrdersClient() {
   return (
     <>
       {err ? (
-        <section className="glass anim-shake">
+        <section className="glass card-v2 anim-shake">
           <p style={{ color: "var(--rose)" }}>{err}</p>
         </section>
       ) : null}
 
       {templates.length === 0 ? (
-        <section className="glass anim-rise">
+        <section className="glass card-v2 anim-rise">
           <h2>Siapkan QRIS</h2>
           <p className="muted">
             Upload gambar QRIS di halaman{" "}
@@ -186,12 +200,12 @@ export function OrdersClient() {
           </p>
         </section>
       ) : (
-        <section className="glass anim-rise">
+        <section className="glass card-v2 anim-rise">
           <h2>Buat transaksi</h2>
           <p className="muted" style={{ marginBottom: 12 }}>
             {templates[0].merchantName}
             {templates[0].merchantCity
-              ? ` \u00b7 ${templates[0].merchantCity}`
+              ? ` · ${templates[0].merchantCity}`
               : ""}
           </p>
           <div className="amount-input-wrap">
@@ -211,14 +225,14 @@ export function OrdersClient() {
             disabled={busy || !amount}
             onClick={create}
           >
-            {busy ? "Membuat\u2026" : "Generate QRIS"}
+            {busy ? "Membuat…" : "Generate QRIS"}
           </button>
         </section>
       )}
 
       {showOrder ? (
         <section
-          className={`glass qr-card ${cancelling ? "anim-cancel" : ""} ${showOrder.status === "success" ? "anim-success" : "anim-pop"}`}
+          className={`glass card-v2 qr-card ${cancelling ? "anim-cancel" : ""} ${showOrder.status === "success" ? "anim-success" : "anim-pop"}`}
           style={{
             borderColor:
               showOrder.status === "success"
@@ -229,7 +243,7 @@ export function OrdersClient() {
           {showOrder.status === "success" ? (
             <>
               <div className="pay-success-block">
-                <div className="pay-check">\u2713</div>
+                <div className="pay-check">✓</div>
                 <p className="amount" style={{ marginTop: 12 }}>
                   {formatRp(showOrder.totalAmount ?? showOrder.amount)}
                 </p>
@@ -279,15 +293,11 @@ export function OrdersClient() {
               )}
 
               <div className="expiry-row">
-                {remainSec != null ? (
+                {remainSec != null && remainSec > 0 ? (
                   <span
                     className={remainSec < 60 ? "expiry urgent" : "expiry"}
                   >
                     Berlaku {remainLabel(remainSec)}
-                  </span>
-                ) : showOrder.expiresAt ? (
-                  <span className="expiry">
-                    Exp {formatTime(showOrder.expiresAt)}
                   </span>
                 ) : null}
                 <span className="status-chip pending">MENUNGGU</span>
@@ -295,7 +305,7 @@ export function OrdersClient() {
 
               <div className="pay-waiting" style={{ marginTop: 14 }}>
                 <span className="pulse" />
-                Menunggu pembayaran\u2026
+                Menunggu pembayaran…
               </div>
 
               <button
@@ -313,8 +323,8 @@ export function OrdersClient() {
       ) : null}
 
       {pending.length > 0 ? (
-        <section className="glass anim-rise">
-          <h2>Antrian \u00b7 {pending.length}</h2>
+        <section className="glass card-v2 anim-rise">
+          <h2>Antrian · {pending.length}</h2>
           {pending.map((o, i) => (
             <div
               key={o.id}
@@ -326,7 +336,7 @@ export function OrdersClient() {
                   {formatRp(o.totalAmount ?? o.amount)}
                 </div>
                 <p className="muted">
-                  {o.expiresAt ? `Exp ${formatTime(o.expiresAt)}` : "\u2014"}
+                  {o.expiresAt ? `Exp ${formatTime(o.expiresAt)}` : "—"}
                 </p>
               </div>
               <button
