@@ -33,19 +33,24 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace
 
+      - name: Rename APK to walzpay.apk
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/walzpay.apk
+          ls -la dist/
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: walzpay-listener-apk
-          path: android-listener/app/build/outputs/apk/debug/app-debug.apk
+          name: walzpay-apk
+          path: android-listener/dist/walzpay.apk
           if-no-files-found: error
           retention-days: 30
 
       - name: Summary
         run: |
-          echo "### APK siap diunduh" >> "$GITHUB_STEP_SUMMARY"
+          echo "### WALZPAY APK siap" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "1. Buka tab **Actions** di repo" >> "$GITHUB_STEP_SUMMARY"
-          echo "2. Pilih workflow **Build WALZPAY Listener APK**" >> "$GITHUB_STEP_SUMMARY"
-          echo "3. Klik run terbaru → **Artifacts** → **walzpay-listener-apk**" >> "$GITHUB_STEP_SUMMARY"
-          echo "4. Extract ZIP → install **app-debug.apk** di HP" >> "$GITHUB_STEP_SUMMARY"
+          echo "1. Buka run ini → **Artifacts** → **walzpay-apk**" >> "$GITHUB_STEP_SUMMARY"
+          echo "2. Extract ZIP → dapat **walzpay.apk**" >> "$GITHUB_STEP_SUMMARY"
+          echo "3. Install di HP" >> "$GITHUB_STEP_SUMMARY"
