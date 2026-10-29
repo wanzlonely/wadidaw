@@ -4,8 +4,11 @@ export type AppSettings = {
   displayName: string;
   apiKey: string;
   webhookSecret: string;
-  feeType: "none" | "fixed" | "percent";
+  feeType: "none" | "fixed" | "percent" | "random";
   feeValue: number;
+  /** Rentang admin acak (untuk anti-collision) */
+  feeMin: number;
+  feeMax: number;
   defaultExpiryMinutes: number;
   enabledMerchants: string[];
   passwordHash: string | null;
@@ -27,9 +30,11 @@ export function defaultSettings(): AppSettings {
     displayName: "WalzPay Merchant",
     apiKey: randomKey(40),
     webhookSecret: "",
-    feeType: "none",
+    feeType: "random",
     feeValue: 0,
-    defaultExpiryMinutes: 30,
+    feeMin: 1,
+    feeMax: 99,
+    defaultExpiryMinutes: 15,
     enabledMerchants: ["dana", "gopay", "whatsapp"],
     passwordHash: null,
     updatedAt: new Date().toISOString(),

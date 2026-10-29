@@ -1,6 +1,7 @@
 /**
  * Static → Dynamic QRIS converter (EMVCo / BI).
  * Adapted from https://github.com/verssache/qris-dinamis
+ * Amount is baked into tag 54 (no separate tip) so e-wallet pays exact total.
  */
 
 type TLV = { tag: string; length: number; value: string; children?: TLV[] };
@@ -74,8 +75,12 @@ export function parseQrisMeta(qrisString: string): {
 }
 
 export function isLikelyQris(s: string): boolean {
-  const t = s.trim();
-  return t.startsWith("000201") && t.length >= 50 && /63\d{2}[0-9A-Fa-f]{4}$/.test(t);
+  const t = s.trim().replace(/\s/g, "");
+  return (
+    t.startsWith("000201") &&
+    t.length >= 50 &&
+    /63\d{2}[0-9A-Fa-f]{4}$/.test(t)
+  );
 }
 
 export function computeAdminFee(
@@ -87,10 +92,14 @@ export function computeAdminFee(
   return Math.max(0, Math.round((baseAmount * fee.value) / 100));
 }
 
+/**
+ * Convert static QRIS → dynamic.
+ * amount = total the customer pays (integer IDR, no decimals).
+ */
 export function convertStaticToDynamic(
   qrisString: string,
   amount: number,
-  fee: FeeOption = null
+  _fee: FeeOption = null
 ): string {
   const clean = qrisString.trim().replace(/\s/g, "");
   if (!isLikelyQris(clean)) {
@@ -100,7 +109,13 @@ export function convertStaticToDynamic(
     throw new Error("Nominal harus > 0");
   }
 
+  const amountStr = String(Math.round(amount));
+
   const elements = parseTLV(clean);
+  if (elements.length === 0) {
+    throw new Error("Gagal parse TLV QRIS");
+  }
+
   const result: TLV[] = [];
   let amountInserted = false;
   const managedTags = new Set(["54", "55", "56", "57", "63"]);
@@ -114,16 +129,7 @@ export function convertStaticToDynamic(
     }
 
     if (el.tag === "58" && !amountInserted) {
-      result.push(makeTLV("54", String(Math.round(amount))));
-      if (fee && fee.value > 0) {
-        if (fee.type === "fixed") {
-          result.push(makeTLV("55", "02"));
-          result.push(makeTLV("56", String(Math.round(fee.value))));
-        } else {
-          result.push(makeTLV("55", "03"));
-          result.push(makeTLV("57", String(fee.value)));
-        }
-      }
+      result.push(makeTLV("54", amountStr));
       amountInserted = true;
     }
 
@@ -131,10 +137,17 @@ export function convertStaticToDynamic(
   }
 
   if (!amountInserted) {
-    result.push(makeTLV("54", String(Math.round(amount))));
+    result.push(makeTLV("54", amountStr));
   }
 
   const withoutCRC = buildTLVString(result);
   const crcInput = withoutCRC + "6304";
-  return crcInput + calculateCRC16(crcInput);
+  const crc = calculateCRC16(crcInput);
+  const out = crcInput + crc;
+
+  if (!isLikelyQris(out)) {
+    throw new Error("Hasil konversi QRIS tidak valid");
+  }
+
+  return out;
 }
