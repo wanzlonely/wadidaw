@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatRp, formatTime } from "@/lib/format";
 
 type Order = {
@@ -46,6 +46,7 @@ export function OrdersClient() {
   const [err, setErr] = useState<string | null>(null);
   const [active, setActive] = useState<Order | null>(null);
   const [remainSec, setRemainSec] = useState<number | null>(null);
+  const activeIdRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     const [oRes, qRes] = await Promise.all([
@@ -63,24 +64,24 @@ export function OrdersClient() {
     setOrders(list);
     setTemplates(qData.items ?? []);
 
-    if (active) {
-      const fresh = list.find((o) => o.id === active.id);
-      if (!fresh) {
+    const id = activeIdRef.current;
+    if (id) {
+      const fresh = list.find((o) => o.id === id);
+      if (fresh) {
+        setActive(fresh);
+      } else {
         const allRes = await fetch("/api/orders");
         const allData = await allRes.json();
-        const found = (allData.orders ?? []).find(
-          (o: Order) => o.id === active.id
-        );
+        const found = (allData.orders ?? []).find((o: Order) => o.id === id);
         if (found?.status === "success") {
           setActive({ ...found });
         } else if (!found || found.status !== "pending") {
           setActive(null);
+          activeIdRef.current = null;
         }
-      } else {
-        setActive(fresh);
       }
     }
-  }, [active]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -117,6 +118,9 @@ export function OrdersClient() {
     }
     setBusy(true);
     setErr(null);
+    setActive(null);
+    activeIdRef.current = null;
+
     const res = await fetch("/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -133,7 +137,9 @@ export function OrdersClient() {
       return;
     }
     setAmount("");
-    setActive(data.order);
+    const ord = data.order as Order;
+    activeIdRef.current = ord.id;
+    setActive(ord);
     load();
   }
 
@@ -144,7 +150,10 @@ export function OrdersClient() {
       method: "DELETE",
     });
     setBusy(false);
-    if (active?.id === id) setActive(null);
+    if (activeIdRef.current === id) {
+      setActive(null);
+      activeIdRef.current = null;
+    }
     load();
   }
 
@@ -152,7 +161,7 @@ export function OrdersClient() {
   const showOrder =
     active && (active.status === "pending" || active.status === "success")
       ? active
-      : pending[0] || null;
+      : null;
 
   return (
     <>
@@ -166,7 +175,7 @@ export function OrdersClient() {
         <section className="glass">
           <h2>Siapkan QRIS</h2>
           <p className="muted">
-            Upload foto QRIS di halaman{" "}
+            Upload gambar QRIS di halaman{" "}
             <strong style={{ color: "var(--ink)" }}>Profil</strong> terlebih
             dahulu. Setelah itu cukup masukkan nominal di sini.
           </p>
@@ -177,7 +186,7 @@ export function OrdersClient() {
           <p className="muted" style={{ marginBottom: 12 }}>
             {templates[0].merchantName}
             {templates[0].merchantCity
-              ? ` · ${templates[0].merchantCity}`
+              ? ` \u00b7 ${templates[0].merchantCity}`
               : ""}
           </p>
           <div className="amount-input-wrap">
@@ -197,7 +206,7 @@ export function OrdersClient() {
             disabled={busy || !amount}
             onClick={create}
           >
-            {busy ? "Membuat…" : "Generate QRIS"}
+            {busy ? "Membuat\u2026" : "Generate QRIS"}
           </button>
         </section>
       )}
@@ -215,7 +224,7 @@ export function OrdersClient() {
           {showOrder.status === "success" ? (
             <>
               <div className="pay-success-block">
-                <div className="pay-check">✓</div>
+                <div className="pay-check">\u2713</div>
                 <p className="amount" style={{ marginTop: 12 }}>
                   {formatRp(showOrder.totalAmount ?? showOrder.amount)}
                 </p>
@@ -227,27 +236,27 @@ export function OrdersClient() {
               <button
                 type="button"
                 className="btn btn-block btn-ghost"
-                onClick={() => setActive(null)}
+                onClick={() => {
+                  setActive(null);
+                  activeIdRef.current = null;
+                }}
               >
                 Transaksi baru
               </button>
             </>
           ) : (
             <>
-              <h2>QRIS dinamis</h2>
+              <h2>QRIS DINAMIS</h2>
               <p className="amount" style={{ textAlign: "center" }}>
                 {formatRp(showOrder.totalAmount ?? showOrder.amount)}
               </p>
-              {showOrder.uniqueCode ? (
+              {(showOrder.adminFee ?? 0) > 0 ? (
                 <p
                   className="muted"
                   style={{ textAlign: "center", marginTop: 4 }}
                 >
-                  Base {formatRp(showOrder.amount)}
-                  {showOrder.adminFee
-                    ? ` + admin ${formatRp(showOrder.adminFee)}`
-                    : ""}{" "}
-                  + kode {showOrder.uniqueCode}
+                  Nominal {formatRp(showOrder.amount)} + admin{" "}
+                  {formatRp(showOrder.adminFee ?? 0)}
                 </p>
               ) : null}
 
@@ -276,12 +285,12 @@ export function OrdersClient() {
                     Exp {formatTime(showOrder.expiresAt)}
                   </span>
                 ) : null}
-                <span className="status-chip pending">menunggu</span>
+                <span className="status-chip pending">MENUNGGU</span>
               </div>
 
               <div className="pay-waiting" style={{ marginTop: 14 }}>
                 <span className="pulse" />
-                Menunggu pembayaran…
+                Menunggu pembayaran\u2026
               </div>
 
               <button
@@ -298,9 +307,9 @@ export function OrdersClient() {
         </section>
       ) : null}
 
-      {pending.length > 1 ? (
+      {pending.length > 0 ? (
         <section className="glass">
-          <h2>Antrian · {pending.length}</h2>
+          <h2>Antrian \u00b7 {pending.length}</h2>
           {pending.map((o) => (
             <div key={o.id} className="list-item" style={{ marginTop: 10 }}>
               <div style={{ flex: 1 }}>
@@ -308,14 +317,17 @@ export function OrdersClient() {
                   {formatRp(o.totalAmount ?? o.amount)}
                 </div>
                 <p className="muted">
-                  {o.expiresAt ? `Exp ${formatTime(o.expiresAt)}` : "—"}
+                  {o.expiresAt ? `Exp ${formatTime(o.expiresAt)}` : "\u2014"}
                 </p>
               </div>
               <button
                 type="button"
                 className="btn btn-ghost"
                 style={{ marginTop: 0, fontSize: 13 }}
-                onClick={() => setActive(o)}
+                onClick={() => {
+                  activeIdRef.current = o.id;
+                  setActive(o);
+                }}
               >
                 Lihat
               </button>
