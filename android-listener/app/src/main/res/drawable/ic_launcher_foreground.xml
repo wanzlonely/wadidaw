@@ -5,24 +5,19 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Card -->
-    <path
-        android:fillColor="#3B82F6"
-        android:pathData="M34,28h40c3.3,0 6,2.7 6,6v24c0,3.3 -2.7,6 -6,6H34c-3.3,0 -6,-2.7 -6,-6V34c0,-3.3 2.7,-6 6,-6z" />
-    <path
-        android:fillColor="#93C5FD"
-        android:pathData="M38,38h10v6H38z" />
     <path
         android:fillColor="#1D4ED8"
-        android:pathData="M34,48h40v4H34z" />
-
-    <!-- W mark -->
+        android:pathData="M30,30h48v36h-48z" />
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M34,34h40v28h-40z" />
+    <path
+        android:fillColor="#93C5FD"
+        android:pathData="M40,42h12v8h-12z" />
     <path
         android:fillColor="#60A5FA"
-        android:pathData="M28,72 L36,72 L42,88 L48,72 L56,72 L48,96 L40,96 L36,86 L32,96 L24,96 Z" />
-
-    <!-- Arrow -->
+        android:pathData="M28,72 L36,72 L42,90 L48,72 L56,72 L49,96 L39,96 L36,86 L33,96 L23,96 Z" />
     <path
         android:fillColor="#A78BFA"
-        android:pathData="M62,78 L78,62 L82,66 L70,78 L82,78 L82,86 L62,86 Z" />
+        android:pathData="M64,70 L84,70 L84,78 L74,78 L84,88 L76,88 L66,78 L66,88 L64,88 Z" />
 </vector>
