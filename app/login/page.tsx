@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { setStoredToken, apiFetch } from "@/lib/api";
 
 type Mode = "login" | "register";
 
@@ -27,7 +28,7 @@ export default function LoginPage() {
   const [challenge, setChallenge] = useState(makeMathChallenge);
 
   useEffect(() => {
-    fetch("/api/auth", { credentials: "include" })
+    apiFetch("/api/auth")
       .then((r) => r.json())
       .then((d) => {
         if (d.authenticated) window.location.href = "/";
@@ -65,10 +66,9 @@ export default function LoginPage() {
         body.password2 = password2;
       }
 
-      const res = await fetch("/api/auth", {
+      const res = await apiFetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -86,6 +86,7 @@ export default function LoginPage() {
         return;
       }
 
+      if (data.token) setStoredToken(data.token);
       setMsg("Berhasil! Mengalihkan…");
       window.location.href = "/";
     } catch {
@@ -101,10 +102,9 @@ export default function LoginPage() {
     setErr(null);
     setBusy(true);
     try {
-      const res = await fetch("/api/auth", {
+      const res = await apiFetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({
           action: "verify_otp",
           userId: otpUserId,
@@ -116,6 +116,7 @@ export default function LoginPage() {
         setErr(data.error || "OTP salah");
         return;
       }
+      if (data.token) setStoredToken(data.token);
       setMsg("OTP OK — masuk…");
       window.location.href = "/";
     } catch {
@@ -129,10 +130,9 @@ export default function LoginPage() {
     setBusy(true);
     setErr(null);
     try {
-      const res = await fetch("/api/auth", {
+      const res = await apiFetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ action: "resend_otp", userId: otpUserId }),
       });
       const data = await res.json();
