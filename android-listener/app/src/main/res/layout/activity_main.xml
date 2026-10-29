@@ -77,6 +77,22 @@
             android:hint="WEBHOOK_SECRET jika dipakai di Vercel"
             android:inputType="textPassword" />
 
+        <Button
+            android:id="@+id/btnPickPackages"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Pilih sumber notifikasi"
+            android:layout_marginTop="12dp" />
+
+        <TextView
+            android:id="@+id/tvSelectedPackages"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Belum dipilih (default DANA dll)"
+            android:textSize="12sp"
+            android:paddingTop="4dp"
+            android:paddingBottom="8dp" />
+
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/switchEnabled"
             android:layout_width="match_parent"

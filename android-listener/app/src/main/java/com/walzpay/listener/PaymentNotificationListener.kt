@@ -22,22 +22,31 @@ class PaymentNotificationListener : NotificationListenerService() {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    /** Package yang dipantau. DANA Bisnis utama. */
-    private val allowedPackages = setOf(
+    /** Default packages jika user belum pilih di UI */
+    private val defaultPackages = setOf(
         "id.dana",
         "id.dana.kasir",
         "com.gojek.gopaymerchant",
         "id.co.bri.merchant",
-        "com.interactive.qrisid"
+        "com.interactive.qrisid",
+        "ovo.id",
+        "com.shopee.id",
+        "com.whatsapp",
+        "com.whatsapp.w4b"
     )
+
+    private fun selectedPackages(prefs: android.content.SharedPreferences): Set<String> {
+        val raw = prefs.getStringSet("selected_packages", null)
+        return if (raw.isNullOrEmpty()) defaultPackages else raw
+    }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         if (sbn == null) return
 
         val packageName = sbn.packageName ?: return
-        if (packageName !in allowedPackages) return
-
         val prefs = getSharedPreferences("walzpay", Context.MODE_PRIVATE)
+        if (packageName !in selectedPackages(prefs)) return
+
         if (!prefs.getBoolean("listener_enabled", false)) return
 
         val webhookUrl = prefs.getString("webhook_url", null)?.trim()
@@ -133,47 +142,20 @@ class PaymentNotificationListener : NotificationListenerService() {
                 put("rawTitle", title)
                 put("amount", amount)
                 put("merchantId", merchantId)
-                put("merchant_id", merchantId)
-                put("paymentSource", if (merchantId == "dana") "DANA" else merchantId)
-                put("source", "walzpay-android-listener")
-                put(
-                    "notification", JSONObject()
-                        .put("title", title)
-                        .put("text", text)
-                        .put("source_package", packageName)
-                )
-                put(
-                    "payment", JSONObject()
-                        .put("amount", amount)
-                        .put("currency", "IDR")
-                        .put("payment_source", if (merchantId == "dana") "DANA" else merchantId)
-                )
             }
 
-            val body = json.toString()
-                .toRequestBody("application/json; charset=utf-8".toMediaType())
-
-            val requestBuilder = Request.Builder()
-                .url(url)
-                .post(body)
-                .header("Content-Type", "application/json")
-
+            val body = json.toString().toRequestBody("application/json".toMediaType())
+            val reqBuilder = Request.Builder().url(url).post(body)
             if (!secret.isNullOrBlank()) {
-                requestBuilder.header("x-walzpay-secret", secret)
+                reqBuilder.header("X-Webhook-Secret", secret)
             }
-
-            client.newCall(requestBuilder.build()).execute().use { response ->
-                val msg = "Webhook ${response.code} · Rp$amount"
-                Log.i(TAG, msg)
-                AppLog.append(applicationContext, msg)
-            }
+            val res = client.newCall(reqBuilder.build()).execute()
+            val code = res.code
+            res.close()
+            AppLog.append(this@PaymentNotificationListener, "Webhook HTTP $code · Rp$amount")
         } catch (e: Exception) {
-            Log.e(TAG, "Gagal kirim webhook", e)
-            AppLog.append(applicationContext, "ERROR: ${e.message}")
+            Log.e("WalzPay", "webhook error", e)
+            AppLog.append(this@PaymentNotificationListener, "Webhook error: ${e.message}")
         }
-    }
-
-    companion object {
-        private const val TAG = "WalzpayListener"
     }
 }
