@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { formatRp, formatTime } from "@/lib/format";
 import { apiFetch, setStoredToken } from "@/lib/api";
 import { pushBubble } from "@/components/BubbleToasts";
+import { androidCall, isWalzApp } from "@/lib/walz-android";
 
 type Payment = {
   id: string;
@@ -61,8 +62,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
     try {
       const AC =
         window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext })
-          .webkitAudioContext;
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const ctx = new AC();
       const o = ctx.createOscillator();
       const g = ctx.createGain();
@@ -92,34 +92,13 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
   const refresh = useCallback(async () => {
     try {
       const [pRes, sRes, fRes, hRes, wRes, oRes, oAllRes] = await Promise.all([
-        apiFetch("/api/payments").then(async (r) => ({
-          ok: r.ok,
-          data: await r.json(),
-        })),
-        apiFetch("/api/service").then(async (r) => ({
-          ok: r.ok,
-          data: await r.json(),
-        })),
-        apiFetch("/api/forwards").then(async (r) => ({
-          ok: r.ok,
-          data: await r.json(),
-        })),
-        apiFetch("/api/health").then(async (r) => ({
-          ok: r.ok,
-          data: await r.json(),
-        })),
-        apiFetch("/api/stats/week").then(async (r) => ({
-          ok: r.ok,
-          data: await r.json(),
-        })),
-        apiFetch("/api/orders?status=pending").then(async (r) => ({
-          ok: r.ok,
-          data: await r.json(),
-        })),
-        apiFetch("/api/orders").then(async (r) => ({
-          ok: r.ok,
-          data: await r.json(),
-        })),
+        apiFetch("/api/payments").then(async (r) => ({ ok: r.ok, data: await r.json() })),
+        apiFetch("/api/service").then(async (r) => ({ ok: r.ok, data: await r.json() })),
+        apiFetch("/api/forwards").then(async (r) => ({ ok: r.ok, data: await r.json() })),
+        apiFetch("/api/health").then(async (r) => ({ ok: r.ok, data: await r.json() })),
+        apiFetch("/api/stats/week").then(async (r) => ({ ok: r.ok, data: await r.json() })),
+        apiFetch("/api/orders?status=pending").then(async (r) => ({ ok: r.ok, data: await r.json() })),
+        apiFetch("/api/orders").then(async (r) => ({ ok: r.ok, data: await r.json() })),
       ]);
 
       const rok = Boolean(hRes.data?.redis && hRes.data?.ok);
@@ -142,10 +121,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       if (wRes.ok) setWeek(wRes.data.days ?? []);
 
       const now = Date.now();
-      const pendingList = (oRes.data?.orders ?? []) as {
-        status: string;
-        expiresAt?: string | null;
-      }[];
+      const pendingList = (oRes.data?.orders ?? []) as { status: string; expiresAt?: string | null }[];
       const live = pendingList.filter((o) => {
         if (o.status !== "pending") return false;
         if (o.expiresAt && new Date(o.expiresAt).getTime() <= now) return false;
@@ -186,10 +162,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !active }),
       });
-      pushBubble({
-        title: !active ? "Layanan diaktifkan" : "Layanan dijeda",
-        tone: "ok",
-      });
+      pushBubble({ title: !active ? "Layanan diaktifkan" : "Layanan dijeda", tone: "ok" });
       refresh();
     } finally {
       setBusy(false);
@@ -214,9 +187,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
   }
 
   async function removeForward(id: string) {
-    await apiFetch(`/api/forwards?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
+    await apiFetch(`/api/forwards?id=${encodeURIComponent(id)}`, { method: "DELETE" });
     pushBubble({ title: "Forward dihapus", tone: "info" });
     refresh();
   }
@@ -225,16 +196,24 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
     const v = !sound;
     setSound(v);
     localStorage.setItem(LS_SOUND, v ? "1" : "0");
-    pushBubble({
-      title: v ? "Suara alert ON" : "Suara alert OFF",
-      tone: "info",
-    });
+    pushBubble({ title: v ? "Suara alert ON" : "Suara alert OFF", tone: "info" });
   }
 
   async function togglePush() {
+    if (isWalzApp()) {
+      androidCall("requestPostNotifications");
+      setPushOn(true);
+      localStorage.setItem(LS_PUSH, "1");
+      pushBubble({
+        title: "Notifikasi aplikasi",
+        sub: "Meminta izin menampilkan notifikasi WALZPAY",
+        tone: "ok",
+      });
+      return;
+    }
     if (!pushOn) {
       if (typeof Notification === "undefined") {
-        pushBubble({ title: "Browser tidak mendukung notifikasi", tone: "err" });
+        pushBubble({ title: "Perangkat tidak mendukung notifikasi", tone: "err" });
         return;
       }
       const perm = await Notification.requestPermission();
@@ -244,15 +223,11 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       }
       setPushOn(true);
       localStorage.setItem(LS_PUSH, "1");
-      pushBubble({
-        title: "Notifikasi browser ON",
-        sub: "Akan muncul saat uang masuk",
-        tone: "ok",
-      });
+      pushBubble({ title: "Notifikasi aktif", sub: "Akan muncul saat uang masuk", tone: "ok" });
     } else {
       setPushOn(false);
       localStorage.setItem(LS_PUSH, "0");
-      pushBubble({ title: "Notifikasi browser OFF", tone: "info" });
+      pushBubble({ title: "Notifikasi dimatikan", tone: "info" });
     }
   }
 
@@ -275,9 +250,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
     <>
       {err ? (
         <section className="glass dash-alert" role="alert">
-          <p style={{ color: "var(--rose)", margin: 0, fontSize: 14, textAlign: "center" }}>
-            {err}
-          </p>
+          <p style={{ color: "var(--rose)", margin: 0, fontSize: 14, textAlign: "center" }}>{err}</p>
         </section>
       ) : null}
 
@@ -288,7 +261,6 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         <p className="hero-sub">
           {todayCnt} transaksi hari ini · total keseluruhan {formatRp(totalAmt)}
         </p>
-
         <div className="hero-stats-grid">
           <div className="hero-stat">
             <span className="hero-stat-label">Hari ini</span>
@@ -318,13 +290,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         <div className="week-bars">
           {week.map((d) => (
             <div key={d.key} className="bar-col">
-              <div
-                className="bar"
-                style={{
-                  height: `${Math.max(6, (d.amount / maxWeek) * 100)}%`,
-                }}
-                title={formatRp(d.amount)}
-              />
+              <div className="bar" style={{ height: `${Math.max(6, (d.amount / maxWeek) * 100)}%` }} title={formatRp(d.amount)} />
               <span className="bar-label">{d.label}</span>
             </div>
           ))}
@@ -337,12 +303,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
           <p>{active ? "Menerima webhook" : "Dijeda"}</p>
         </div>
         <label className={`switch${active ? " is-on" : " is-off"}`}>
-          <input
-            type="checkbox"
-            checked={active}
-            disabled={busy}
-            onChange={toggleService}
-          />
+          <input type="checkbox" checked={active} disabled={busy} onChange={toggleService} />
           <span className="slider" />
         </label>
       </section>
@@ -354,9 +315,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
             <p className="amount">{formatRp(stats.latest.amount)}</p>
             <p className="muted" style={{ marginTop: 4 }}>
               {stats.latest.merchantId}
-              {stats.latest.paymentSource
-                ? ` · ${stats.latest.paymentSource}`
-                : ""}
+              {stats.latest.paymentSource ? ` · ${stats.latest.paymentSource}` : ""}
             </p>
             <p className="muted">{formatTime(stats.latest.receivedAt)}</p>
           </div>
@@ -376,33 +335,15 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       <section className="glass">
         <h2>Forward URL</h2>
         <div className="form-row" style={{ marginTop: 8 }}>
-          <input
-            className="input"
-            placeholder="https://…"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-          <button
-            type="button"
-            className="btn btn-press"
-            style={{ marginTop: 0 }}
-            disabled={busy}
-            onClick={addForward}
-          >
+          <input className="input" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
+          <button type="button" className="btn btn-press" style={{ marginTop: 0 }} disabled={busy} onClick={addForward}>
             + Tambah
           </button>
         </div>
         {forwards.map((f) => (
           <div key={f.id} className="list-item" style={{ marginTop: 10 }}>
-            <code className="code" style={{ flex: 1, marginTop: 0 }}>
-              {f.url}
-            </code>
-            <button
-              type="button"
-              className="btn btn-ghost btn-press"
-              style={{ marginTop: 0 }}
-              onClick={() => removeForward(f.id)}
-            >
+            <code className="code" style={{ flex: 1, marginTop: 0 }}>{f.url}</code>
+            <button type="button" className="btn btn-ghost btn-press" style={{ marginTop: 0 }} onClick={() => removeForward(f.id)}>
               Hapus
             </button>
           </div>
@@ -422,8 +363,8 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
 
       <section className="glass row">
         <div>
-          <h2 style={{ marginBottom: 4 }}>Notifikasi browser</h2>
-          <p>{pushOn ? "Aktif" : "Minta izin OS / browser"}</p>
+          <h2 style={{ marginBottom: 4 }}>Notifikasi aplikasi</h2>
+          <p>{pushOn ? "Aktif" : "Izin menampilkan notifikasi WALZPAY"}</p>
         </div>
         <label className={`switch${pushOn ? " is-on" : " is-off"}`}>
           <input type="checkbox" checked={pushOn} onChange={togglePush} />
