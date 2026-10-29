@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       token: result.session.token,
       needA2f: result.needA2f,
-      otpPreview: result.otpPreview ?? null,
+      emailSent: result.emailSent ?? false,
       email: result.session.email,
     });
   }
