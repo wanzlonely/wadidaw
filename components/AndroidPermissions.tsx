@@ -96,7 +96,6 @@ type Row = {
   statusFn?: (st: AndroidStatus | null) => boolean;
   optional?: boolean;
   isPackages?: boolean;
-  alwaysAction?: boolean;
 };
 
 const ROWS: Row[] = [
@@ -134,7 +133,6 @@ const ROWS: Row[] = [
     okLabel: "Sudah diatur",
     badLabel: "Perlu diatur",
     action: "openAutostart",
-    alwaysAction: true,
   },
   {
     key: "overlay",
@@ -167,6 +165,7 @@ export function AndroidPermissions() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  const [autostartTick, setAutostartTick] = useState(0);
 
   const refresh = useCallback(() => {
     const app = isWalzApp();
@@ -212,6 +211,23 @@ export function AndroidPermissions() {
       .catch(() => {});
   }, []);
 
+  function isAutostartDone(): boolean {
+    try {
+      return localStorage.getItem("walzpay_autostart_done") === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function markAutostartDone() {
+    try {
+      localStorage.setItem("walzpay_autostart_done", "1");
+    } catch {
+      /* ignore */
+    }
+    setAutostartTick((n) => n + 1);
+  }
+
   function run(action: Parameters<typeof androidCall>[0], title: string) {
     if (!inApp) {
       pushBubble({
@@ -223,10 +239,17 @@ export function AndroidPermissions() {
     }
     const ok = androidCall(action);
     if (ok) {
-      pushBubble({ title, tone: "ok" });
-      setTimeout(refresh, 600);
-      setTimeout(refresh, 1800);
-      setTimeout(refresh, 3500);
+      if (action === "openAutostart") markAutostartDone();
+      pushBubble({
+        title,
+        sub:
+          action === "openAutostart"
+            ? "Aktifkan WALZPAY di pengaturan OEM"
+            : undefined,
+        tone: "ok",
+      });
+      setTimeout(refresh, 400);
+      setTimeout(refresh, 1500);
     }
   }
 
@@ -276,7 +299,10 @@ export function AndroidPermissions() {
 
   function isOk(row: Row): boolean | null {
     if (!inApp) return null;
-    if (row.alwaysAction) return false;
+    if (row.key === "autostart") {
+      void autostartTick;
+      return isAutostartDone();
+    }
     if (row.statusFn) return row.statusFn(st);
     if (row.statusKey && st) return Boolean(st[row.statusKey]);
     return null;
@@ -291,7 +317,7 @@ export function AndroidPermissions() {
     );
   }, [pkgList, search]);
 
-  const requiredRows = ROWS.filter((r) => !r.optional && !r.alwaysAction);
+  const requiredRows = ROWS.filter((r) => !r.optional);
   const doneCount = requiredRows.filter((r) => isOk(r) === true).length;
   const totalRequired = requiredRows.length;
   const listenerOn = Boolean(st?.listener);
@@ -473,7 +499,7 @@ export function AndroidPermissions() {
                 ✕
               </button>
             </div>
-            <p className="muted" style={{ margin: "0 0 12px", fontSize: 12 }}>
+            <p className="muted" style={{ margin: "0 0 10px", fontSize: 12 }}>
               Centang aplikasi yang ingin dipantau. Tidak ada yang dipilih otomatis.
             </p>
             <div className="izin-search-wrap">
