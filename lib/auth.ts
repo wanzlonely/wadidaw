@@ -1,4 +1,5 @@
 import { getRedis, KEYS } from "./redis";
+import { sendOtpEmail } from "./email";
 
 export type User = {
   id: string;
@@ -38,6 +39,19 @@ function randomToken(len = 40): string {
   return s;
 }
 
+function randomDigits(len: number): string {
+  let s = "";
+  for (let i = 0; i < len; i++) {
+    s += Math.floor(Math.random() * 10).toString();
+  }
+  return s;
+}
+
+/** Format: WLZPY + 7 digits e.g. WLZPY2728281 */
+function shortUserId(): string {
+  return "WLZPY" + randomDigits(7);
+}
+
 function randomOtp(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
@@ -72,12 +86,19 @@ export async function registerUser(input: {
     return { ok: false, error: "Email sudah terdaftar" };
   }
   const now = new Date().toISOString();
+  let id = shortUserId();
+  const used = new Set(users.map((u) => u.id));
+  let guard = 0;
+  while (used.has(id) && guard < 20) {
+    id = shortUserId();
+    guard++;
+  }
   const user: User = {
-    id: `usr_${Date.now()}_${randomToken(6)}`,
+    id,
     email,
     displayName: input.displayName.trim() || email.split("@")[0],
     passwordHash: await hashPassword(input.password),
-    a2fEnabled: false,
+    a2fEnabled: true,
     a2fSecret: null,
     createdAt: now,
     updatedAt: now,
@@ -92,7 +113,7 @@ export async function loginUser(input: {
   email: string;
   password: string;
 }): Promise<
-  | { ok: true; session: Session; needA2f: boolean; otpPreview?: string }
+  | { ok: true; session: Session; needA2f: boolean; otpPreview?: string; emailSent?: boolean }
   | { ok: false; error: string }
 > {
   const email = input.email.trim().toLowerCase();
@@ -120,13 +141,16 @@ export async function loginUser(input: {
   });
 
   let otpPreview: string | undefined;
+  let emailSent = false;
   if (user.a2fEnabled) {
     const otp = randomOtp();
     await redis.set(`${KEYS.a2f}:${session.token}`, otp, { ex: 300 });
-    otpPreview = otp;
+    const mail = await sendOtpEmail(user.email, otp, "login");
+    emailSent = mail.ok;
+    if (!mail.ok) otpPreview = otp;
   }
 
-  return { ok: true, session, needA2f: user.a2fEnabled, otpPreview };
+  return { ok: true, session, needA2f: user.a2fEnabled, otpPreview, emailSent };
 }
 
 export async function changePassword(
@@ -218,7 +242,6 @@ export async function getUserById(id: string): Promise<User | null> {
   return users.find((u) => u.id === id) ?? null;
 }
 
-/** Captcha challenge: klik + tunggu server-side */
 export async function createCaptcha(): Promise<{ id: string; waitMs: number }> {
   const id = randomToken(24);
   const waitMs = 2000;
