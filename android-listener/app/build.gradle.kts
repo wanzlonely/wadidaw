@@ -11,8 +11,8 @@ android {
         applicationId = "com.walzpay.listener"
         minSdk = 26
         targetSdk = 34
-        versionCode = 21
-        versionName = "2.7.1"
+        versionCode = 22
+        versionName = "2.8.0"
     }
 
     buildTypes {
