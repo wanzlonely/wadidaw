@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./extra.css";
 import { AuthGuard } from "@/components/AuthGuard";
 import { BubbleToasts } from "@/components/BubbleToasts";
 
