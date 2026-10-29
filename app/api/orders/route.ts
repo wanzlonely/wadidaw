@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createOrder, listOrders, cancelOrder, sweepExpiredOrders } from "@/lib/store";
 import { getStaticQris } from "@/lib/static-qris";
-import { convertStaticToDynamic } from "@/lib/qris-convert";
-import { getSettings } from "@/lib/settings";
-import { hasRedisEnv, getRedis } from "@/lib/redis";
-import { K } from "@/lib/tenant";
-import { requireUser } from "@/lib/api-auth";
+import { convertStaticToDynamic, computeAdminFee } from "@/lib/qris-convert";
+import { getSettingsForUser } from "@/lib/settings";
+import { getRedis, hasRedisEnv, KEYS } from "@/lib/redis";
+import { resolveSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,9 +16,9 @@ export async function GET(req: NextRequest) {
       { status: 503 }
     );
   }
-  const auth = await requireUser(req);
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.error, orders: [] }, { status: auth.status });
+  const session = await resolveSession(req);
+  if (!session) {
+    return NextResponse.json({ error: "Belum login", orders: [] }, { status: 401 });
   }
   const status = req.nextUrl.searchParams.get("status") as
     | "pending"
@@ -27,7 +26,7 @@ export async function GET(req: NextRequest) {
     | "expired"
     | "cancelled"
     | null;
-  const orders = await listOrders(status || undefined);
+  const orders = await listOrders(status || undefined, session.userId);
   return NextResponse.json({ orders });
 }
 
@@ -35,9 +34,10 @@ export async function POST(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
   }
-  const auth = await requireUser(req);
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const session = await resolveSession(req);
+  if (!session) {
+    return NextResponse.json({ error: "Belum login" }, { status: 401 });
   }
 
   let body: Record<string, unknown>;
@@ -56,9 +56,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const settings = await getSettings();
-    const minFee = Math.max(0, Math.round(settings.feeMin ?? 1));
-    const maxFee = Math.max(minFee, Math.round(settings.feeMax ?? 99));
+    const settings = await getSettingsForUser(session.userId);
+
+    let adminFee = 0;
+    if (body.adminFee != null && Number.isFinite(Number(body.adminFee))) {
+      adminFee = Math.max(0, Math.round(Number(body.adminFee)));
+    } else if (settings.feeType === "fixed") {
+      adminFee = computeAdminFee(amount, {
+        type: "fixed",
+        value: settings.feeValue,
+      });
+    } else if (settings.feeType === "percent") {
+      adminFee = computeAdminFee(amount, {
+        type: "percent",
+        value: settings.feeValue,
+      });
+    }
 
     const expiresInMinutes =
       body.expiresInMinutes != null
@@ -72,9 +85,10 @@ export async function POST(req: NextRequest) {
       note: body.note != null ? String(body.note) : null,
       expiresInMinutes,
       dynamic: body.dynamic === false ? false : true,
-      adminFee: 0,
-      minFee,
-      maxFee,
+      adminFee,
+      minFee: settings.feeMin,
+      maxFee: settings.feeMax,
+      userId: session.userId,
     });
 
     const qrisStaticId =
@@ -93,14 +107,14 @@ export async function POST(req: NextRequest) {
         null
       );
       const redis = getRedis();
-      const raw = await redis.lrange(K().orders, 0, 49);
+      const raw = await redis.lrange(KEYS.orders, 0, 49);
       for (let i = 0; i < raw.length; i++) {
         const item =
           typeof raw[i] === "string" ? JSON.parse(raw[i] as string) : raw[i];
         if (item.id === order.id) {
           item.qrisStaticId = qrisStaticId;
           item.dynamicQris = dynamicQris;
-          await redis.lset(K().orders, i, JSON.stringify(item));
+          await redis.lset(KEYS.orders, i, JSON.stringify(item));
           (order as { qrisStaticId?: string }).qrisStaticId = qrisStaticId;
           (order as { dynamicQris?: string }).dynamicQris = dynamicQris;
           break;
@@ -120,10 +134,6 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
-  }
-  const auth = await requireUser(req);
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   if (req.nextUrl.searchParams.get("all") === "1" || req.nextUrl.searchParams.get("purge") === "1") {
     await sweepExpiredOrders();
