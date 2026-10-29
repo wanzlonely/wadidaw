@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./extra.css";
+import "./izin.css";
 
 export const metadata: Metadata = {
   title: "WALZPAY — Liquid Glass Dashboard",
