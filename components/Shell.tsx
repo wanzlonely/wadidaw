@@ -16,11 +16,13 @@ export function Shell({
       <header className="topbar">
         <div className="brand">
           <div className="logo">WALZPAY</div>
-          <p className="tagline">{subtitle ?? "QRIS → Webhook → Redis"}</p>
+          <p className="tagline">{subtitle ?? "Pembayaran otomatis"}</p>
         </div>
         {redisOk !== undefined ? (
           <div className="pill-status">
-            <span className={`dot ${redisOk ? "on" : redisOk === false ? "off" : ""}`} />
+            <span
+              className={`dot ${redisOk ? "on" : redisOk === false ? "off" : ""}`}
+            />
             {redisOk === null ? "…" : redisOk ? "Redis" : "No Redis"}
           </div>
         ) : null}
