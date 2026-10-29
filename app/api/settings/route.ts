@@ -3,9 +3,9 @@ import {
   getSettings,
   updateSettings,
   rotateApiKey,
-  hashPassword,
 } from "@/lib/settings";
 import { hasRedisEnv } from "@/lib/redis";
+import { requireUser } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,14 +21,17 @@ function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
     feeMax: (s as { feeMax?: number }).feeMax ?? 99,
     defaultExpiryMinutes: s.defaultExpiryMinutes,
     enabledMerchants: s.enabledMerchants ?? [],
-    hasPassword: Boolean(s.passwordHash),
     updatedAt: s.updatedAt,
   };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
+  }
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   const s = await getSettings();
   return NextResponse.json({ settings: publicSettings(s) });
@@ -38,6 +41,11 @@ export async function POST(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
   }
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -50,24 +58,6 @@ export async function POST(req: NextRequest) {
   if (action === "rotate_api_key") {
     const s = await rotateApiKey();
     return NextResponse.json({ ok: true, apiKey: s.apiKey });
-  }
-
-  if (action === "set_password") {
-    const pw = String(body.password || "");
-    if (pw.length < 6) {
-      return NextResponse.json(
-        { error: "Password minimal 6 karakter" },
-        { status: 400 }
-      );
-    }
-    const passwordHash = await hashPassword(pw);
-    await updateSettings({ passwordHash });
-    return NextResponse.json({ ok: true });
-  }
-
-  if (action === "clear_password") {
-    await updateSettings({ passwordHash: null });
-    return NextResponse.json({ ok: true });
   }
 
   const patch: Record<string, unknown> = {
