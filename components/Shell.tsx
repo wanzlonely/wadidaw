@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Nav } from "./Nav";
 
 export function Shell({
@@ -21,14 +22,24 @@ export function Shell({
           </div>
           <p className="tagline">{subtitle ?? "Pembayaran otomatis"}</p>
         </div>
-        {redisOk !== undefined ? (
-          <div className="pill-status">
-            <span
-              className={`dot ${redisOk ? "on" : redisOk === false ? "off" : ""}`}
-            />
-            {redisOk === null ? "\u2026" : redisOk ? "Online" : "Offline"}
-          </div>
-        ) : null}
+        <div className="topbar-right">
+          {redisOk !== undefined ? (
+            <div className="pill-status">
+              <span
+                className={`dot ${redisOk ? "on" : redisOk === false ? "off" : ""}`}
+              />
+              {redisOk === null ? "…" : redisOk ? "Online" : "Offline"}
+            </div>
+          ) : null}
+          <Link
+            href="/pengaturan"
+            className={`btn-setel-float${active === "/pengaturan" ? " active" : ""}`}
+            aria-label="Pengaturan"
+            title="Pengaturan"
+          >
+            ⚙
+          </Link>
+        </div>
       </header>
       <div className="page-enter">{children}</div>
       <Nav active={active} />
