@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import { Nav } from "./Nav";
+import { apiFetch, setStoredToken } from "@/lib/api";
 
 /**
- * Shell = layout UI + session gate (cookie walz_sid via GET /api/auth).
- * Timeout 8s supaya tidak stuck di "Memeriksa sesi…".
+ * Shell = layout UI + session gate.
+ * Cookie + token backup. Timeout 8s — tidak stuck di "Memeriksa sesi…".
+ * Setel (pengaturan) di pojok kanan atas, bukan di bottom nav.
  */
 export function Shell({
   active,
@@ -32,12 +35,13 @@ export function Shell({
     const ctrl = new AbortController();
     const to = setTimeout(() => ctrl.abort(), 8000);
 
-    fetch("/api/auth", { credentials: "include", signal: ctrl.signal })
+    apiFetch("/api/auth", { signal: ctrl.signal })
       .then(async (r) => {
         clearTimeout(to);
         if (cancelled) return;
         const d = await r.json().catch(() => ({}));
         if (!r.ok || !d.authenticated) {
+          setStoredToken(null);
           window.location.replace("/login");
           return;
         }
@@ -57,10 +61,13 @@ export function Shell({
 
   if (!ready) {
     return (
-      <main className="shell">
-        <p className="muted" style={{ textAlign: "center", marginTop: 80 }}>
-          Memeriksa sesi…
-        </p>
+      <main className="shell shell-loading">
+        <div className="auth-logo" style={{ marginTop: 100 }}>
+          <div className="logo-mark">W</div>
+          <p className="muted" style={{ marginTop: 12, textAlign: "center" }}>
+            Memeriksa sesi…
+          </p>
+        </div>
       </main>
     );
   }
@@ -75,14 +82,24 @@ export function Shell({
           </div>
           <p className="tagline">{subtitle ?? "Pembayaran otomatis"}</p>
         </div>
-        {redisOk !== undefined ? (
-          <div className="pill-status">
-            <span
-              className={`dot ${redisOk ? "on" : redisOk === false ? "off" : ""}`}
-            />
-            {redisOk === null ? "…" : redisOk ? "Online" : "Offline"}
-          </div>
-        ) : null}
+        <div className="topbar-actions">
+          {redisOk !== undefined ? (
+            <div className="pill-status">
+              <span
+                className={`dot ${redisOk ? "on" : redisOk === false ? "off" : ""}`}
+              />
+              {redisOk === null ? "…" : redisOk ? "Online" : "Offline"}
+            </div>
+          ) : null}
+          <Link
+            href="/pengaturan"
+            className={`btn-icon-setel${active === "/pengaturan" ? " active" : ""}`}
+            title="Pengaturan"
+            aria-label="Pengaturan"
+          >
+            ⚙
+          </Link>
+        </div>
       </header>
       <div className="page-enter">{children}</div>
       <Nav active={active} />

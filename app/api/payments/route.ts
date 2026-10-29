@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listPayments, clearPayments, getStats } from "@/lib/store";
 import { hasRedisEnv } from "@/lib/redis";
-import { requireUser } from "@/lib/api-auth";
+import { resolveSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,14 +13,17 @@ export async function GET(req: NextRequest) {
       { status: 503 }
     );
   }
-  const auth = await requireUser(req);
-  if (!auth.ok) {
+  const session = await resolveSession(req);
+  if (!session) {
     return NextResponse.json(
-      { error: auth.error, payments: [], stats: null },
-      { status: auth.status }
+      { error: "Belum login", payments: [], stats: null },
+      { status: 401 }
     );
   }
-  const [payments, stats] = await Promise.all([listPayments(), getStats()]);
+  const [payments, stats] = await Promise.all([
+    listPayments(session.userId),
+    getStats(),
+  ]);
   return NextResponse.json({ payments, stats });
 }
 
@@ -28,9 +31,9 @@ export async function DELETE(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
   }
-  const auth = await requireUser(req);
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const secret = process.env.WEBHOOK_SECRET;
+  if (secret && req.headers.get("x-walzpay-secret") !== secret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   await clearPayments();
   return NextResponse.json({ ok: true });
