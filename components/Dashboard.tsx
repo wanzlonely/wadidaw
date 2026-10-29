@@ -123,17 +123,13 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       onRedis?.(rok);
 
       if (!pRes.ok) {
-        const msg = pRes.data?.error || "Gagal memuat data";
-        if (
-          pRes.data?.error === "Belum login" ||
-          msg.includes("login") ||
-          msg.includes("Login")
-        ) {
+        const msg = String(pRes.data?.error || "Gagal memuat data");
+        if (/login|belum login|sesi/i.test(msg)) {
           setStoredToken(null);
           window.location.replace("/login");
           return;
         }
-        setErr(msg === "Belum login" ? "Sesi berakhir — silakan masuk lagi" : msg);
+        setErr(msg);
         return;
       }
       setErr(null);
@@ -244,29 +240,31 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       </div>
 
       {err ? (
-        <section className="glass">
-          <h2>Error</h2>
-          <p style={{ color: "var(--rose)" }}>{err}</p>
+        <section className="glass dash-alert" role="alert">
+          <p style={{ color: "var(--rose)", margin: 0, fontSize: 14, textAlign: "center" }}>
+            {err}
+          </p>
         </section>
       ) : null}
 
-      <section className="glass">
-        <div className="hero-amount">
-          <p className="label">Masuk hari ini</p>
-          <p className="amount">{formatRp(stats?.todayAmount ?? 0)}</p>
-          <p className="muted" style={{ marginTop: 6 }}>
-            {stats?.todayCount ?? 0} transaksi · total{" "}
-            {formatRp(stats?.totalAmount ?? 0)}
-          </p>
-        </div>
-        <hr className="divider" />
-        <div className="stats-grid">
+      <section className="glass dash-hero">
+        <p className="label" style={{ textAlign: "center", marginBottom: 4 }}>
+          Masuk hari ini
+        </p>
+        <p className="amount" style={{ textAlign: "center", fontSize: "2rem" }}>
+          {formatRp(stats?.todayAmount ?? 0)}
+        </p>
+        <p className="muted" style={{ textAlign: "center", marginTop: 6 }}>
+          {stats?.todayCount ?? 0} transaksi · total{" "}
+          {formatRp(stats?.totalAmount ?? 0)}
+        </p>
+        <div className="stats-grid" style={{ marginTop: 16 }}>
           <div className="stat-box">
             <p className="label">Hari ini</p>
             <p className="amount sm">{stats?.todayCount ?? 0}</p>
           </div>
           <div className="stat-box">
-            <p className="label">Pesanan pending</p>
+            <p className="label">Pending</p>
             <p className="amount sm">{stats?.pendingOrders ?? 0}</p>
           </div>
         </div>
