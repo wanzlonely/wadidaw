@@ -165,7 +165,6 @@ export function AndroidPermissions() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
-  const [autostartTick, setAutostartTick] = useState(0);
 
   const refresh = useCallback(() => {
     const app = isWalzApp();
@@ -211,23 +210,6 @@ export function AndroidPermissions() {
       .catch(() => {});
   }, []);
 
-  function isAutostartDone(): boolean {
-    try {
-      return localStorage.getItem("walzpay_autostart_done") === "1";
-    } catch {
-      return false;
-    }
-  }
-
-  function markAutostartDone() {
-    try {
-      localStorage.setItem("walzpay_autostart_done", "1");
-    } catch {
-      /* ignore */
-    }
-    setAutostartTick((n) => n + 1);
-  }
-
   function run(action: Parameters<typeof androidCall>[0], title: string) {
     if (!inApp) {
       pushBubble({
@@ -239,7 +221,6 @@ export function AndroidPermissions() {
     }
     const ok = androidCall(action);
     if (ok) {
-      if (action === "openAutostart") markAutostartDone();
       pushBubble({
         title,
         sub:
@@ -249,7 +230,8 @@ export function AndroidPermissions() {
         tone: "ok",
       });
       setTimeout(refresh, 400);
-      setTimeout(refresh, 1500);
+      setTimeout(refresh, 1200);
+      setTimeout(refresh, 2500);
     }
   }
 
@@ -299,10 +281,7 @@ export function AndroidPermissions() {
 
   function isOk(row: Row): boolean | null {
     if (!inApp) return null;
-    if (row.key === "autostart") {
-      void autostartTick;
-      return isAutostartDone();
-    }
+    if (row.key === "autostart") return Boolean(st?.autostart);
     if (row.statusFn) return row.statusFn(st);
     if (row.statusKey && st) return Boolean(st[row.statusKey]);
     return null;
@@ -496,7 +475,9 @@ export function AndroidPermissions() {
                 onClick={() => setPickerOpen(false)}
                 aria-label="Tutup"
               >
-                ✕
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
               </button>
             </div>
             <p className="muted" style={{ margin: "0 0 10px", fontSize: 12 }}>
