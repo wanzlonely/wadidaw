@@ -20,7 +20,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Tangkap notifikasi DANA → kirim ke website"
+            android:text="Pantau notifikasi e-wallet → website (order jadi Sukses)"
             android:textSize="13sp"
             android:paddingBottom="12dp" />
 
@@ -61,20 +61,34 @@
             android:id="@+id/etWebhookUrl"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="https://wadidaw-zeta.vercel.app/api/webhook"
+            android:hint="https://DOMAIN-ANDA.vercel.app/api/webhook"
             android:inputType="textUri" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Secret (opsional)"
+            android:text="API Key (wajib · salin dari Setel di website)"
+            android:paddingTop="12dp" />
+
+        <EditText
+            android:id="@+id/etApiKey"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="API key merchant"
+            android:inputType="textPassword"
+            android:fontFamily="monospace" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Secret (opsional · WEBHOOK_SECRET Vercel)"
             android:paddingTop="12dp" />
 
         <EditText
             android:id="@+id/etSecret"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="WEBHOOK_SECRET jika dipakai di Vercel"
+            android:hint="Opsional"
             android:inputType="textPassword" />
 
         <Button
