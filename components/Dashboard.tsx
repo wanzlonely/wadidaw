@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { formatRp, formatTime } from "@/lib/format";
 import { apiFetch, setStoredToken } from "@/lib/api";
 import { pushBubble } from "@/components/BubbleToasts";
-import { androidCall, isWalzApp } from "@/lib/walz-android";
 
 type Payment = {
   id: string;
@@ -29,10 +28,8 @@ type Forward = { id: string; url: string; enabled: boolean };
 type WeekDay = { key: string; label: string; count: number; amount: number };
 
 const LS_SOUND = "walzpay_sound";
-const LS_PUSH = "walzpay_push";
 
 export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }) {
-  const [active, setActive] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
   const [pendingLive, setPendingLive] = useState(0);
   const [successLive, setSuccessLive] = useState(0);
@@ -40,7 +37,6 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
   const [week, setWeek] = useState<WeekDay[]>([]);
   const [url, setUrl] = useState("");
   const [sound, setSound] = useState(true);
-  const [pushOn, setPushOn] = useState(false);
   const [hookPath, setHookPath] = useState("/api/webhook");
   const [busy, setBusy] = useState(false);
   const [lastCount, setLastCount] = useState(0);
@@ -51,7 +47,6 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       setHookPath(`${window.location.origin}/api/webhook`);
       try {
         setSound(localStorage.getItem(LS_SOUND) !== "0");
-        setPushOn(localStorage.getItem(LS_PUSH) === "1");
       } catch {
         /* ignore */
       }
@@ -77,23 +72,10 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
     }
   }
 
-  function browserNotify(title: string, body: string) {
-    if (!pushOn) return;
-    if (typeof Notification === "undefined") return;
-    if (Notification.permission === "granted") {
-      try {
-        new Notification(title, { body, icon: "/icon-192.png" });
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-
   const refresh = useCallback(async () => {
     try {
-      const [pRes, sRes, fRes, hRes, wRes, oRes, oAllRes] = await Promise.all([
+      const [pRes, fRes, hRes, wRes, oRes, oAllRes] = await Promise.all([
         apiFetch("/api/payments").then(async (r) => ({ ok: r.ok, data: await r.json() })),
-        apiFetch("/api/service").then(async (r) => ({ ok: r.ok, data: await r.json() })),
         apiFetch("/api/forwards").then(async (r) => ({ ok: r.ok, data: await r.json() })),
         apiFetch("/api/health").then(async (r) => ({ ok: r.ok, data: await r.json() })),
         apiFetch("/api/stats/week").then(async (r) => ({ ok: r.ok, data: await r.json() })),
@@ -116,7 +98,6 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       }
       setErr(null);
       setStats(pRes.data.stats);
-      setActive(Boolean(sRes.data?.active));
       setForwards(fRes.data?.forwards ?? []);
       if (wRes.ok) setWeek(wRes.data.days ?? []);
 
@@ -139,35 +120,19 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         const sub = `${latest.merchantId}${latest.paymentSource ? " · " + latest.paymentSource : ""}`;
         pushBubble({ title, sub, tone: "ok" });
         if (sound) playBeep();
-        browserNotify(title, sub);
       }
       setLastCount(count);
     } catch (e) {
       setErr(String(e));
       onRedis?.(false);
     }
-  }, [sound, pushOn, lastCount, onRedis]);
+  }, [sound, lastCount, onRedis]);
 
   useEffect(() => {
     refresh();
     const t = setInterval(refresh, 2000);
     return () => clearInterval(t);
   }, [refresh]);
-
-  async function toggleService() {
-    setBusy(true);
-    try {
-      await apiFetch("/api/service", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: !active }),
-      });
-      pushBubble({ title: !active ? "Layanan diaktifkan" : "Layanan dijeda", tone: "ok" });
-      refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function addForward() {
     if (!url.trim()) return;
@@ -199,38 +164,6 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
     pushBubble({ title: v ? "Suara alert ON" : "Suara alert OFF", tone: "info" });
   }
 
-  async function togglePush() {
-    if (isWalzApp()) {
-      androidCall("requestPostNotifications");
-      setPushOn(true);
-      localStorage.setItem(LS_PUSH, "1");
-      pushBubble({
-        title: "Notifikasi aplikasi",
-        sub: "Meminta izin menampilkan notifikasi WALZPAY",
-        tone: "ok",
-      });
-      return;
-    }
-    if (!pushOn) {
-      if (typeof Notification === "undefined") {
-        pushBubble({ title: "Perangkat tidak mendukung notifikasi", tone: "err" });
-        return;
-      }
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") {
-        pushBubble({ title: "Izin notifikasi ditolak", tone: "err" });
-        return;
-      }
-      setPushOn(true);
-      localStorage.setItem(LS_PUSH, "1");
-      pushBubble({ title: "Notifikasi aktif", sub: "Akan muncul saat uang masuk", tone: "ok" });
-    } else {
-      setPushOn(false);
-      localStorage.setItem(LS_PUSH, "0");
-      pushBubble({ title: "Notifikasi dimatikan", tone: "info" });
-    }
-  }
-
   async function copyHook() {
     try {
       await navigator.clipboard.writeText(hookPath);
@@ -250,13 +183,13 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
     <div className="home-v2">
       {err ? (
         <section className="glass card-v2 anim-shake" role="alert">
-          <p style={{ color: "var(--rose)", margin: 0, textAlign: "center" }}>⚠️ {err}</p>
+          <p style={{ color: "var(--rose)", margin: 0, textAlign: "center" }}>{err}</p>
         </section>
       ) : null}
 
       <section className="glass card-v2 home-hero anim-rise">
         <div className="hero-glow" aria-hidden />
-        <p className="hero-kicker">💰 Masuk hari ini</p>
+        <p className="hero-kicker">Masuk hari ini</p>
         <p className="hero-rp">{formatRp(todayAmt)}</p>
         <p className="hero-sub">
           {todayCnt} transaksi · total {formatRp(totalAmt)}
@@ -286,7 +219,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       </section>
 
       <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.04s" }}>
-        <h2>📊 7 hari terakhir</h2>
+        <h2>7 hari terakhir</h2>
         <div className="week-bars">
           {week.length === 0 ? (
             <p className="empty" style={{ width: "100%" }}>Belum ada data minggu ini</p>
@@ -305,19 +238,8 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         </div>
       </section>
 
-      <section className="glass card-v2 row anim-rise" style={{ animationDelay: "0.06s" }}>
-        <div>
-          <h2 style={{ marginBottom: 4 }}>⚡ Layanan aktif</h2>
-          <p className="muted">{active ? "Menerima webhook" : "Dijeda"}</p>
-        </div>
-        <label className={`switch${active ? " is-on" : " is-off"}`}>
-          <input type="checkbox" checked={active} disabled={busy} onChange={toggleService} />
-          <span className="slider" />
-        </label>
-      </section>
-
-      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.08s" }}>
-        <h2>🧾 Pembayaran terakhir</h2>
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.06s" }}>
+        <h2>Pembayaran terakhir</h2>
         {stats?.latest ? (
           <div className="home-latest">
             <p className="amount">{formatRp(stats.latest.amount)}</p>
@@ -332,16 +254,16 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         )}
       </section>
 
-      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.1s" }}>
-        <h2>🔗 Webhook HP</h2>
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.08s" }}>
+        <h2>Webhook HP</h2>
         <code className="code">{hookPath}</code>
         <button type="button" className="btn btn-block btn-press" onClick={copyHook}>
-          📋 Salin URL
+          Salin URL
         </button>
       </section>
 
-      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.12s" }}>
-        <h2>↪️ Forward URL</h2>
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.1s" }}>
+        <h2>Forward URL</h2>
         <div className="form-row" style={{ marginTop: 8 }}>
           <input
             className="input"
@@ -376,24 +298,13 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         ))}
       </section>
 
-      <section className="glass card-v2 row anim-rise" style={{ animationDelay: "0.14s" }}>
+      <section className="glass card-v2 row anim-rise" style={{ animationDelay: "0.12s" }}>
         <div>
-          <h2 style={{ marginBottom: 4 }}>🔊 Suara alert</h2>
+          <h2 style={{ marginBottom: 4 }}>Suara alert</h2>
           <p className="muted">Beep saat uang masuk</p>
         </div>
         <label className={`switch${sound ? " is-on" : " is-off"}`}>
           <input type="checkbox" checked={sound} onChange={toggleSound} />
-          <span className="slider" />
-        </label>
-      </section>
-
-      <section className="glass card-v2 row anim-rise" style={{ animationDelay: "0.16s" }}>
-        <div>
-          <h2 style={{ marginBottom: 4 }}>🔔 Notifikasi</h2>
-          <p className="muted">{pushOn ? "Aktif" : "Izin notifikasi WALZPAY"}</p>
-        </div>
-        <label className={`switch${pushOn ? " is-on" : " is-off"}`}>
-          <input type="checkbox" checked={pushOn} onChange={togglePush} />
           <span className="slider" />
         </label>
       </section>
