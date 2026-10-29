@@ -64,7 +64,15 @@ export function AkunClient() {
     load();
   }, [load]);
 
-  async function setPw() {
+  async function setPw(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (busy === "pw") return;
+
+    if (!oldPw.trim()) {
+      setErr("Masukkan password lama");
+      pushBubble({ title: "Masukkan password lama", tone: "err" });
+      return;
+    }
     if (password.length < 6) {
       setErr("Password baru minimal 6 karakter");
       pushBubble({ title: "Password minimal 6 karakter", tone: "err" });
@@ -75,11 +83,12 @@ export function AkunClient() {
       pushBubble({ title: "Konfirmasi password tidak cocok", tone: "err" });
       return;
     }
-    if (!oldPw) {
-      setErr("Masukkan password lama");
-      pushBubble({ title: "Masukkan password lama", tone: "err" });
+    if (oldPw === password) {
+      setErr("Password baru harus berbeda");
+      pushBubble({ title: "Password baru harus berbeda", tone: "err" });
       return;
     }
+
     setBusy("pw");
     setErr(null);
     try {
@@ -92,14 +101,11 @@ export function AkunClient() {
           newPassword: password,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErr(data.error || "Gagal menyimpan password");
-        pushBubble({
-          title: "Gagal menyimpan password",
-          sub: data.error || "Coba lagi",
-          tone: "err",
-        });
+        const msg = data.error || "Gagal menyimpan password";
+        setErr(msg);
+        pushBubble({ title: msg, tone: "err" });
         return;
       }
       setOldPw("");
@@ -200,9 +206,7 @@ export function AkunClient() {
         <p className="muted" style={{ textAlign: "center" }}>
           {u?.email || "—"}
         </p>
-        <div className="account-badge">
-          {u?.hasPassword ? "Password aktif" : "Password aktif"}
-        </div>
+        <div className="account-badge">Password aktif</div>
         {u?.createdAt ? (
           <p
             className="muted"
@@ -244,52 +248,53 @@ export function AkunClient() {
 
       <section className="glass card-v2 anim-rise">
         <h2>Ubah password</h2>
-        <label className="field-label">Password lama</label>
-        <input
-          className="input field-input"
-          type={showPw ? "text" : "password"}
-          value={oldPw}
-          onChange={(e) => setOldPw(e.target.value)}
-          placeholder="Password saat ini"
-          autoComplete="current-password"
-        />
-        <label className="field-label">Password baru</label>
-        <input
-          className="input field-input"
-          type={showPw ? "text" : "password"}
-          placeholder="Minimal 6 karakter"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="new-password"
-        />
-        <label className="field-label">Konfirmasi password baru</label>
-        <input
-          className="input field-input"
-          type={showPw ? "text" : "password"}
-          placeholder="Ulangi password baru"
-          value={password2}
-          onChange={(e) => setPassword2(e.target.value)}
-          autoComplete="new-password"
-        />
-        <label className="check-row" style={{ marginTop: 10 }}>
+        <form onSubmit={setPw}>
+          <label className="field-label">Password lama</label>
           <input
-            type="checkbox"
-            checked={showPw}
-            onChange={(e) => setShowPw(e.target.checked)}
+            className="input field-input"
+            type={showPw ? "text" : "password"}
+            value={oldPw}
+            onChange={(e) => setOldPw(e.target.value)}
+            placeholder="Password saat ini"
+            autoComplete="current-password"
           />
-          <span className="muted" style={{ fontSize: 13 }}>
-            Tampilkan password
-          </span>
-        </label>
-        <button
-          type="button"
-          className="btn btn-primary btn-block btn-press"
-          style={{ marginTop: 12 }}
-          disabled={busy !== null || password.length < 6 || !oldPw}
-          onClick={setPw}
-        >
-          {busy === "pw" ? "Menyimpan…" : "Simpan password"}
-        </button>
+          <label className="field-label">Password baru</label>
+          <input
+            className="input field-input"
+            type={showPw ? "text" : "password"}
+            placeholder="Minimal 6 karakter"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+          <label className="field-label">Konfirmasi password baru</label>
+          <input
+            className="input field-input"
+            type={showPw ? "text" : "password"}
+            placeholder="Ulangi password baru"
+            value={password2}
+            onChange={(e) => setPassword2(e.target.value)}
+            autoComplete="new-password"
+          />
+          <label className="check-row" style={{ marginTop: 10 }}>
+            <input
+              type="checkbox"
+              checked={showPw}
+              onChange={(e) => setShowPw(e.target.checked)}
+            />
+            <span className="muted" style={{ fontSize: 13 }}>
+              Tampilkan password
+            </span>
+          </label>
+          <button
+            type="submit"
+            className="btn btn-primary btn-block btn-press"
+            style={{ marginTop: 12 }}
+            disabled={busy === "pw"}
+          >
+            {busy === "pw" ? "Menyimpan…" : "Simpan password"}
+          </button>
+        </form>
       </section>
 
       <section className="glass card-v2 anim-rise">
