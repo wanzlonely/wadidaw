@@ -97,28 +97,41 @@
   border-color: rgba(255, 143, 163, 0.25);
 }
 
-.status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-  background: rgba(255, 255, 255, 0.25);
+.riwayat-ico {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.status-dot.status-success {
-  background: #34d399;
-  box-shadow: 0 0 8px rgba(52, 211, 153, 0.5);
+.riwayat-ico.ico-success {
+  background: rgba(52, 211, 153, 0.14);
+  border-color: rgba(52, 211, 153, 0.28);
+  color: #34d399;
 }
 
-.status-dot.status-pending {
-  background: #fbbf24;
-  box-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+.riwayat-ico.ico-pending {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.28);
+  color: #fbbf24;
 }
 
-.status-dot.status-expired,
-.status-dot.status-cancelled {
-  background: #ff8fa3;
+.riwayat-ico.ico-expired,
+.riwayat-ico.ico-cancelled {
+  background: rgba(255, 143, 163, 0.12);
+  border-color: rgba(255, 143, 163, 0.28);
+  color: #ff8fa3;
 }
+
+.status-ico.success { color: #34d399; }
+.status-ico.pending { color: #fbbf24; }
+.status-ico.expired,
+.status-ico.cancelled { color: #ff8fa3; }
 
 .input-with-action {
   position: relative;
@@ -158,4 +171,14 @@
   vertical-align: -2px;
   margin-right: 4px;
   opacity: 0.9;
+}
+
+code.code {
+  display: block;
+  word-break: break-all;
+  font-size: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
