@@ -8,6 +8,7 @@ declare global {
       openNotificationAccess: () => void;
       openBattery: () => void;
       openAutostart: () => void;
+      markAutostartDone: () => void;
       openOverlay: () => void;
       openShizuku: () => void;
       openPackagePicker: () => void;
@@ -41,6 +42,7 @@ export type AndroidStatus = {
   shizuku: string;
   packages: number;
   push?: boolean;
+  autostart?: boolean;
 };
 
 export type PackageItem = {
