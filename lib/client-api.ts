@@ -1,19 +1,9 @@
 "use client";
 
-/** @deprecated use lib/api.ts — kept for compatibility */
+/** Re-export — same implementation as lib/api */
 export {
   apiFetch,
   getStoredToken,
   setStoredToken,
+  authHeaders,
 } from "./api";
-
-export function authHeaders(extra?: HeadersInit): HeadersInit {
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("walzpay_token") || ""
-      : "";
-  return {
-    ...(extra || {}),
-    ...(token ? { "x-walz-token": token } : {}),
-  };
-}

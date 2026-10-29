@@ -1,38 +1,62 @@
-/* Nav 4 tabs + Setel top-right (overrides) */
+/* Force 4-tab bottom nav — Setel only top-right */
 .nav-bottom {
   grid-template-columns: repeat(4, 1fr) !important;
 }
+.nav-bottom a[href="/pengaturan"] {
+  display: none !important;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .topbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  margin-left: auto;
 }
+
 .btn-icon-setel {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 14px;
   font-size: 18px;
-  color: var(--ink-dim, rgba(235,240,255,0.68));
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid var(--line, rgba(255,255,255,0.12));
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   text-decoration: none;
-  transition: color 0.2s, background 0.2s, transform 0.15s;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  transition: background 0.2s, transform 0.15s;
 }
 .btn-icon-setel:hover,
 .btn-icon-setel.active {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(110, 182, 255, 0.35);
 }
 .btn-icon-setel:active {
   transform: scale(0.94);
 }
+
 .shell-loading {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 60vh;
+}
+
+.dash-hero .amount {
+  letter-spacing: -0.02em;
+}
+.dash-alert {
+  padding: 12px 16px !important;
+}
+.pill-status {
+  white-space: nowrap;
 }

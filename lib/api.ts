@@ -21,6 +21,14 @@ export function setStoredToken(token: string | null) {
   }
 }
 
+export function authHeaders(extra?: HeadersInit): HeadersInit {
+  const token = getStoredToken() || "";
+  return {
+    ...(extra || {}),
+    ...(token ? { "x-walz-token": token } : {}),
+  };
+}
+
 export async function apiFetch(
   input: RequestInfo | URL,
   init: RequestInit = {}
