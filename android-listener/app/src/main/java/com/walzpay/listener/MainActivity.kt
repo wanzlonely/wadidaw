@@ -36,6 +36,8 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
+        /** Bump when website UI changes so WebView does not keep stale JS/HTML. */
+        const val SITE_CACHE_BUST = "2.3.1"
     }
 
     private val knownPackages = linkedMapOf(
@@ -77,7 +79,16 @@ class MainActivity : AppCompatActivity() {
         settings.databaseEnabled = true
         settings.allowFileAccess = true
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.3"
+        // Always revalidate from network so website deploy appears without reinstall
+        settings.cacheMode = WebSettings.LOAD_NO_CACHE
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        }
+        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.3.1"
+
+        // Drop old HTML/JS from previous deploys (Profil still showing Izin panel, etc.)
+        webView.clearCache(true)
+        webView.clearHistory()
 
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
@@ -100,8 +111,16 @@ class MainActivity : AppCompatActivity() {
         }
         webView.webChromeClient = WebChromeClient()
 
-        if (savedInstanceState == null) webView.loadUrl(SITE_URL)
-        else webView.restoreState(savedInstanceState)
+        if (savedInstanceState == null) {
+            val bust = prefs().getString("last_cache_bust", null)
+            if (bust != SITE_CACHE_BUST) {
+                webView.clearCache(true)
+                prefs().edit().putString("last_cache_bust", SITE_CACHE_BUST).apply()
+            }
+            webView.loadUrl("$SITE_URL/?v=$SITE_CACHE_BUST")
+        } else {
+            webView.restoreState(savedInstanceState)
+        }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
