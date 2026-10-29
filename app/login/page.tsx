@@ -153,7 +153,9 @@ export default function LoginPage() {
   return (
     <div className="auth-shell">
       <div className="auth-logo">
-        <div className="logo-mark">W</div>
+        <div className="logo-mark" aria-hidden>
+          W
+        </div>
         <h1 className="auth-brand">WALZPAY</h1>
         <p className="auth-tag">{title}</p>
       </div>
@@ -164,17 +166,22 @@ export default function LoginPage() {
         </div>
       ) : null}
       {err ? (
-        <div className="toast-bubble toast-bubble-err toast-bubble-in" role="alert">
+        <div
+          className="toast-bubble toast-bubble-err toast-bubble-in"
+          role="alert"
+        >
           {err}
         </div>
       ) : null}
 
-      <div className="auth-card glass">
+      <div className="auth-card glass card-v2">
         {!needOtp ? (
           <>
-            <div className="auth-tabs">
+            <div className="auth-tabs" role="tablist">
               <button
                 type="button"
+                role="tab"
+                aria-selected={mode === "login"}
                 className={mode === "login" ? "active" : undefined}
                 onClick={() => switchMode("login")}
               >
@@ -182,6 +189,8 @@ export default function LoginPage() {
               </button>
               <button
                 type="button"
+                role="tab"
+                aria-selected={mode === "register"}
                 className={mode === "register" ? "active" : undefined}
                 onClick={() => switchMode("register")}
               >
@@ -256,6 +265,7 @@ export default function LoginPage() {
                     className="btn btn-ghost"
                     onClick={resetCaptcha}
                     title="Soal baru"
+                    aria-label="Ganti soal captcha"
                   >
                     ↻
                   </button>
@@ -271,6 +281,7 @@ export default function LoginPage() {
                   }
                   placeholder="Jawaban"
                   autoComplete="off"
+                  aria-label="Jawaban captcha"
                 />
               </div>
 
@@ -289,8 +300,22 @@ export default function LoginPage() {
           </>
         ) : (
           <form onSubmit={submitOtp} className="auth-form">
-            <h2 style={{ marginBottom: 8, textAlign: "center" }}>Kode OTP</h2>
-            <p className="muted" style={{ textAlign: "center", marginBottom: 16 }}>
+            <h2
+              style={{
+                marginBottom: 4,
+                textAlign: "center",
+                fontSize: "0.95rem",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: "var(--aqua)",
+              }}
+            >
+              Kode OTP
+            </h2>
+            <p
+              className="muted"
+              style={{ textAlign: "center", marginBottom: 8 }}
+            >
               Kode 6 digit dikirim ke{" "}
               <strong style={{ color: "var(--ink)" }}>{otpEmail}</strong>
             </p>
@@ -321,7 +346,7 @@ export default function LoginPage() {
             <button
               type="button"
               className="btn btn-ghost btn-block"
-              style={{ marginTop: 10 }}
+              style={{ marginTop: 4 }}
               disabled={busy}
               onClick={resendOtp}
             >
