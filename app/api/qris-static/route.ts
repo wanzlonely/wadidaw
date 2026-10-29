@@ -7,6 +7,7 @@ import {
 } from "@/lib/static-qris";
 import { hasRedisEnv } from "@/lib/redis";
 import { requireUser } from "@/lib/api-auth";
+import { setTenant } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error, items: [] }, { status: auth.status });
   }
+  setTenant(auth.userId);
   const items = await listStaticQris();
   return NextResponse.json({ items, max: 3 });
 }
@@ -34,6 +36,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+  setTenant(auth.userId);
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -73,6 +76,7 @@ export async function PATCH(req: NextRequest) {
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+  setTenant(auth.userId);
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -101,6 +105,7 @@ export async function DELETE(req: NextRequest) {
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+  setTenant(auth.userId);
   const id = req.nextUrl.searchParams.get("id");
   if (!id) {
     return NextResponse.json({ error: "id required" }, { status: 400 });
