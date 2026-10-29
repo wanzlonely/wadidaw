@@ -247,19 +247,19 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
   const totalCnt = stats?.count ?? 0;
 
   return (
-    <>
+    <div className="home-v2">
       {err ? (
-        <section className="glass dash-alert" role="alert">
-          <p style={{ color: "var(--rose)", margin: 0, fontSize: 14, textAlign: "center" }}>{err}</p>
+        <section className="glass card-v2 anim-shake" role="alert">
+          <p style={{ color: "var(--rose)", margin: 0, textAlign: "center" }}>⚠️ {err}</p>
         </section>
       ) : null}
 
-      <section className="glass card-v2 dash-hero">
+      <section className="glass card-v2 home-hero anim-rise">
         <div className="hero-glow" aria-hidden />
-        <p className="hero-kicker">Masuk hari ini</p>
+        <p className="hero-kicker">💰 Masuk hari ini</p>
         <p className="hero-rp">{formatRp(todayAmt)}</p>
         <p className="hero-sub">
-          {todayCnt} transaksi hari ini · total keseluruhan {formatRp(totalAmt)}
+          {todayCnt} transaksi · total {formatRp(totalAmt)}
         </p>
         <div className="hero-stats-grid">
           <div className="hero-stat">
@@ -270,7 +270,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
           <div className="hero-stat">
             <span className="hero-stat-label">Pending</span>
             <span className="hero-stat-value">{pendingLive}</span>
-            <span className="hero-stat-hint">menunggu bayar</span>
+            <span className="hero-stat-hint">menunggu</span>
           </div>
           <div className="hero-stat">
             <span className="hero-stat-label">Sukses</span>
@@ -285,22 +285,30 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         </div>
       </section>
 
-      <section className="glass">
-        <h2>7 hari terakhir</h2>
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.04s" }}>
+        <h2>📊 7 hari terakhir</h2>
         <div className="week-bars">
-          {week.map((d) => (
-            <div key={d.key} className="bar-col">
-              <div className="bar" style={{ height: `${Math.max(6, (d.amount / maxWeek) * 100)}%` }} title={formatRp(d.amount)} />
-              <span className="bar-label">{d.label}</span>
-            </div>
-          ))}
+          {week.length === 0 ? (
+            <p className="empty" style={{ width: "100%" }}>Belum ada data minggu ini</p>
+          ) : (
+            week.map((d) => (
+              <div key={d.key} className="bar-col">
+                <div
+                  className="bar"
+                  style={{ height: `${Math.max(6, (d.amount / maxWeek) * 100)}%` }}
+                  title={formatRp(d.amount)}
+                />
+                <span className="bar-label">{d.label}</span>
+              </div>
+            ))
+          )}
         </div>
       </section>
 
-      <section className="glass row">
+      <section className="glass card-v2 row anim-rise" style={{ animationDelay: "0.06s" }}>
         <div>
-          <h2 style={{ marginBottom: 4 }}>Layanan aktif</h2>
-          <p>{active ? "Menerima webhook" : "Dijeda"}</p>
+          <h2 style={{ marginBottom: 4 }}>⚡ Layanan aktif</h2>
+          <p className="muted">{active ? "Menerima webhook" : "Dijeda"}</p>
         </div>
         <label className={`switch${active ? " is-on" : " is-off"}`}>
           <input type="checkbox" checked={active} disabled={busy} onChange={toggleService} />
@@ -308,10 +316,10 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         </label>
       </section>
 
-      <section className="glass">
-        <h2>Pembayaran terakhir</h2>
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.08s" }}>
+        <h2>🧾 Pembayaran terakhir</h2>
         {stats?.latest ? (
-          <div>
+          <div className="home-latest">
             <p className="amount">{formatRp(stats.latest.amount)}</p>
             <p className="muted" style={{ marginTop: 4 }}>
               {stats.latest.merchantId}
@@ -324,36 +332,54 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         )}
       </section>
 
-      <section className="glass">
-        <h2>Webhook HP</h2>
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.1s" }}>
+        <h2>🔗 Webhook HP</h2>
         <code className="code">{hookPath}</code>
         <button type="button" className="btn btn-block btn-press" onClick={copyHook}>
-          Salin URL
+          📋 Salin URL
         </button>
       </section>
 
-      <section className="glass">
-        <h2>Forward URL</h2>
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.12s" }}>
+        <h2>↪️ Forward URL</h2>
         <div className="form-row" style={{ marginTop: 8 }}>
-          <input className="input" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
-          <button type="button" className="btn btn-press" style={{ marginTop: 0 }} disabled={busy} onClick={addForward}>
+          <input
+            className="input"
+            placeholder="https://…"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn-press"
+            style={{ marginTop: 0 }}
+            disabled={busy}
+            onClick={addForward}
+          >
             + Tambah
           </button>
         </div>
         {forwards.map((f) => (
           <div key={f.id} className="list-item" style={{ marginTop: 10 }}>
-            <code className="code" style={{ flex: 1, marginTop: 0 }}>{f.url}</code>
-            <button type="button" className="btn btn-ghost btn-press" style={{ marginTop: 0 }} onClick={() => removeForward(f.id)}>
+            <code className="code" style={{ flex: 1, marginTop: 0 }}>
+              {f.url}
+            </code>
+            <button
+              type="button"
+              className="btn btn-ghost btn-press"
+              style={{ marginTop: 0 }}
+              onClick={() => removeForward(f.id)}
+            >
               Hapus
             </button>
           </div>
         ))}
       </section>
 
-      <section className="glass row">
+      <section className="glass card-v2 row anim-rise" style={{ animationDelay: "0.14s" }}>
         <div>
-          <h2 style={{ marginBottom: 4 }}>Suara alert</h2>
-          <p>Beep saat uang masuk</p>
+          <h2 style={{ marginBottom: 4 }}>🔊 Suara alert</h2>
+          <p className="muted">Beep saat uang masuk</p>
         </div>
         <label className={`switch${sound ? " is-on" : " is-off"}`}>
           <input type="checkbox" checked={sound} onChange={toggleSound} />
@@ -361,16 +387,16 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         </label>
       </section>
 
-      <section className="glass row">
+      <section className="glass card-v2 row anim-rise" style={{ animationDelay: "0.16s" }}>
         <div>
-          <h2 style={{ marginBottom: 4 }}>Notifikasi aplikasi</h2>
-          <p>{pushOn ? "Aktif" : "Izin menampilkan notifikasi WALZPAY"}</p>
+          <h2 style={{ marginBottom: 4 }}>🔔 Notifikasi</h2>
+          <p className="muted">{pushOn ? "Aktif" : "Izin notifikasi WALZPAY"}</p>
         </div>
         <label className={`switch${pushOn ? " is-on" : " is-off"}`}>
           <input type="checkbox" checked={pushOn} onChange={togglePush} />
           <span className="slider" />
         </label>
       </section>
-    </>
+    </div>
   );
 }
