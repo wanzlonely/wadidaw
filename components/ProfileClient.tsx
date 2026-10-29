@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { decodeQrisFromImage } from "@/lib/decode-qris-image";
 import { isLikelyQris, parseQrisMeta } from "@/lib/qris-convert";
+import { apiFetch } from "@/lib/client-api";
+import { pushBubble } from "@/components/BubbleToasts";
 
 type Settings = {
   displayName: string;
@@ -14,7 +16,6 @@ type Settings = {
   feeMax: number;
   defaultExpiryMinutes: number;
   enabledMerchants: string[];
-  hasPassword: boolean;
   updatedAt: string;
 };
 
@@ -32,10 +33,8 @@ export function ProfileClient() {
   const [templates, setTemplates] = useState<StaticQris[]>([]);
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [hookPath, setHookPath] = useState("/api/webhook");
-  // string state agar angka 0 bisa dihapus & diganti bebas
   const [feeMinStr, setFeeMinStr] = useState("1");
   const [feeMaxStr, setFeeMaxStr] = useState("99");
   const [preview, setPreview] = useState<{
@@ -47,8 +46,8 @@ export function ProfileClient() {
 
   const load = useCallback(async () => {
     const [sRes, qRes] = await Promise.all([
-      fetch("/api/settings"),
-      fetch("/api/qris-static"),
+      apiFetch("/api/settings"),
+      apiFetch("/api/qris-static"),
     ]);
     const sData = await sRes.json();
     const qData = await qRes.json();
@@ -94,7 +93,7 @@ export function ProfileClient() {
         merchantName: meta.merchantName,
         merchantCity: meta.merchantCity,
       });
-      setMsg("QRIS terdeteksi — periksa info lalu simpan");
+      pushBubble({ title: "QRIS terdeteksi", sub: "Periksa lalu simpan", tone: "info" });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -106,10 +105,8 @@ export function ProfileClient() {
   async function saveStatic() {
     if (!preview) return;
     setBusy(true);
-    setMsg(null);
-    const res = await fetch("/api/qris-static", {
+    const res = await apiFetch("/api/qris-static", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         qrisString: preview.qrisString,
         label: preview.merchantName,
@@ -122,13 +119,13 @@ export function ProfileClient() {
       return;
     }
     setPreview(null);
-    setMsg("QRIS statis disimpan");
+    pushBubble({ title: "QRIS disimpan", tone: "ok" });
     load();
   }
 
   async function deleteStatic(id: string) {
     if (!confirm("Hapus QRIS ini?")) return;
-    await fetch(`/api/qris-static?id=${encodeURIComponent(id)}`, {
+    await apiFetch(`/api/qris-static?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
     load();
@@ -139,10 +136,8 @@ export function ProfileClient() {
     const min = Math.max(0, Number(feeMinStr) || 0);
     const max = Math.max(min, Number(feeMaxStr) || 0);
     setBusy(true);
-    setMsg(null);
-    const res = await fetch("/api/settings", {
+    const res = await apiFetch("/api/settings", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "update",
         displayName: s.displayName,
@@ -170,29 +165,28 @@ export function ProfileClient() {
     });
     setFeeMinStr(String(data.settings.feeMin ?? min));
     setFeeMaxStr(String(data.settings.feeMax ?? max));
-    setMsg("Pengaturan disimpan");
+    pushBubble({ title: "Pengaturan disimpan", tone: "ok" });
   }
 
   async function rotateKey() {
     if (!confirm("Generate API key baru? Key lama tidak bisa dipakai.")) return;
     setBusy(true);
-    const res = await fetch("/api/settings", {
+    const res = await apiFetch("/api/settings", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "rotate_api_key" }),
     });
     const data = await res.json();
     setBusy(false);
     if (res.ok) {
       setS((prev) => (prev ? { ...prev, apiKey: data.apiKey } : prev));
-      setMsg("API key baru dibuat");
+      pushBubble({ title: "API key baru dibuat", tone: "ok" });
     }
   }
 
   async function copy(text: string, label: string) {
     try {
       await navigator.clipboard.writeText(text);
-      setMsg(`${label} disalin`);
+      pushBubble({ title: `${label} disalin`, tone: "info" });
     } catch {
       /* ignore */
     }
@@ -212,11 +206,6 @@ export function ProfileClient() {
         <section className="glass card-v2 anim-shake">
           <p style={{ color: "var(--rose)" }}>{err}</p>
         </section>
-      ) : null}
-      {msg ? (
-        <div className="toast-banner anim-pop" role="status">
-          {msg}
-        </div>
       ) : null}
 
       <section className="glass card-v2 anim-rise">
@@ -312,9 +301,8 @@ export function ProfileClient() {
       <section className="glass card-v2 anim-rise">
         <h2>Sumber notifikasi</h2>
         <p className="muted" style={{ marginBottom: 8 }}>
-          Pilih aplikasi sumber notifikasi langsung di aplikasi listener Android
+          Pilih aplikasi sumber notifikasi di aplikasi listener Android
           (tombol <strong style={{ color: "var(--ink)" }}>Pilih sumber notifikasi</strong>).
-          Daftar aplikasi diambil dari perangkat HP Anda.
         </p>
       </section>
 
@@ -332,10 +320,7 @@ export function ProfileClient() {
               type="text"
               inputMode="numeric"
               value={feeMinStr}
-              onChange={(e) => {
-                const v = e.target.value.replace(/[^\d]/g, "");
-                setFeeMinStr(v);
-              }}
+              onChange={(e) => setFeeMinStr(e.target.value.replace(/[^\d]/g, ""))}
               onBlur={() => {
                 if (feeMinStr === "") setFeeMinStr("0");
               }}
@@ -349,10 +334,7 @@ export function ProfileClient() {
               type="text"
               inputMode="numeric"
               value={feeMaxStr}
-              onChange={(e) => {
-                const v = e.target.value.replace(/[^\d]/g, "");
-                setFeeMaxStr(v);
-              }}
+              onChange={(e) => setFeeMaxStr(e.target.value.replace(/[^\d]/g, ""))}
               onBlur={() => {
                 if (feeMaxStr === "") setFeeMaxStr("0");
               }}
@@ -389,12 +371,9 @@ export function ProfileClient() {
 
       <section className="glass card-v2 anim-rise">
         <h2>Nama tampilan</h2>
-        <label className="muted" style={{ display: "block", marginTop: 8 }}>
-          Nama merchant
-        </label>
         <input
           className="input"
-          style={{ width: "100%", marginTop: 4 }}
+          style={{ width: "100%", marginTop: 8 }}
           value={s.displayName}
           onChange={(e) => setS({ ...s, displayName: e.target.value })}
         />
