@@ -1,5 +1,5 @@
-import { getRedis, KEYS } from "./redis";
-import { sendOtpEmail } from "./email";
+import { getRedis, hasRedisEnv } from "./redis";
+import { cookies } from "next/headers";
 
 export type User = {
   id: string;
@@ -7,36 +7,43 @@ export type User = {
   displayName: string;
   passwordHash: string;
   a2fEnabled: boolean;
-  a2fSecret: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
 export type Session = {
-  token: string;
+  sid: string;
   userId: string;
   email: string;
-  createdAt: string;
-  expiresAt: string;
-  a2fVerified: boolean;
+  displayName: string;
+  expiresAt: number;
 };
 
-async function hashPassword(plain: string): Promise<string> {
-  const data = new TextEncoder().encode(plain + ":walzpay-salt-v1");
+const SESSION_TTL_SEC = 60 * 60 * 24 * 14; // 14 days
+export const COOKIE_NAME = "walz_sid";
+
+function userKey(email: string) {
+  return `walzpay:user:${email.toLowerCase().trim()}`;
+}
+
+function sessionKey(sid: string) {
+  return `walzpay:session:${sid}`;
+}
+
+function userIdKey(id: string) {
+  return `walzpay:uid:${id}`;
+}
+
+export function scopedKey(userId: string, name: string) {
+  return `walzpay:u:${userId}:${name}`;
+}
+
+export async function hashPassword(plain: string): Promise<string> {
+  const data = new TextEncoder().encode(plain + "|walzpay-v1");
   const buf = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-}
-
-function randomToken(len = 40): string {
-  const alphabet =
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let s = "";
-  for (let i = 0; i < len; i++) {
-    s += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
-  return s;
 }
 
 function randomDigits(len: number): string {
@@ -47,243 +54,174 @@ function randomDigits(len: number): string {
   return s;
 }
 
-function shortUserId(): string {
-  return "WLZPY" + randomDigits(7);
+function randomSid(len = 24): string {
+  const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let s = "";
+  for (let i = 0; i < len; i++) {
+    s += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return s;
 }
 
-function randomOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-async function loadUsers(): Promise<User[]> {
+/** Format: WLZPY + 7 digits  e.g. WLZPY2728281 */
+async function generateShortUserId(): Promise<string> {
   const redis = getRedis();
-  const raw = await redis.get(KEYS.users);
-  if (!raw) return [];
-  if (typeof raw === "string") return JSON.parse(raw) as User[];
-  return raw as User[];
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const id = "WLZPY" + randomDigits(7);
+    const exists = await redis.get(userIdKey(id));
+    if (!exists) return id;
+  }
+  return "WLZPY" + randomDigits(7) + randomDigits(2);
 }
 
-async function saveUsers(users: User[]) {
+export async function findUserByEmail(email: string): Promise<User | null> {
+  if (!hasRedisEnv()) return null;
   const redis = getRedis();
-  await redis.set(KEYS.users, JSON.stringify(users));
+  const raw = await redis.get(userKey(email));
+  if (!raw) return null;
+  return (typeof raw === "string" ? JSON.parse(raw) : raw) as User;
 }
 
-export async function registerUser(input: {
+export async function findUserById(id: string): Promise<User | null> {
+  if (!hasRedisEnv()) return null;
+  const redis = getRedis();
+  const email = await redis.get(userIdKey(id));
+  if (!email || typeof email !== "string") return null;
+  return findUserByEmail(email);
+}
+
+export async function createUser(input: {
   email: string;
   password: string;
   displayName: string;
-}): Promise<{ ok: true; user: Omit<User, "passwordHash"> } | { ok: false; error: string }> {
-  const email = input.email.trim().toLowerCase();
-  if (!email || !email.includes("@")) {
+}): Promise<{ ok: true; user: User } | { ok: false; error: string }> {
+  const email = input.email.toLowerCase().trim();
+  if (!email || !email.includes("@") || email.length < 5) {
     return { ok: false, error: "Email tidak valid" };
   }
   if (input.password.length < 6) {
     return { ok: false, error: "Password minimal 6 karakter" };
   }
-  const users = await loadUsers();
-  if (users.some((u) => u.email === email)) {
-    return { ok: false, error: "Email sudah terdaftar" };
-  }
-  const now = new Date().toISOString();
-  let id = shortUserId();
-  const used = new Set(users.map((u) => u.id));
-  let guard = 0;
-  while (used.has(id) && guard < 20) {
-    id = shortUserId();
-    guard++;
-  }
+  const name = (input.displayName || email.split("@")[0]).trim().slice(0, 40);
+  if (!name) return { ok: false, error: "Nama tampilan wajib" };
+
+  const existing = await findUserByEmail(email);
+  if (existing) return { ok: false, error: "Email sudah terdaftar" };
+
+  const id = await generateShortUserId();
   const user: User = {
     id,
     email,
-    displayName: input.displayName.trim() || email.split("@")[0],
+    displayName: name,
     passwordHash: await hashPassword(input.password),
-    a2fEnabled: true,
-    a2fSecret: null,
-    createdAt: now,
-    updatedAt: now,
+    a2fEnabled: true, // default ON — OTP via email
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
-  users.push(user);
-  await saveUsers(users);
-  const { passwordHash: _, ...safe } = user;
-  return { ok: true, user: safe };
+
+  const redis = getRedis();
+  await redis.set(userKey(email), JSON.stringify(user));
+  await redis.set(userIdKey(user.id), email);
+  return { ok: true, user };
 }
 
-export async function loginUser(input: {
-  email: string;
-  password: string;
-}): Promise<
-  | { ok: true; session: Session; needA2f: boolean; emailSent?: boolean }
-  | { ok: false; error: string }
-> {
-  const email = input.email.trim().toLowerCase();
-  const users = await loadUsers();
-  const user = users.find((u) => u.email === email);
-  if (!user) return { ok: false, error: "Email atau password salah" };
-  const h = await hashPassword(input.password);
-  if (h !== user.passwordHash) {
-    return { ok: false, error: "Email atau password salah" };
-  }
+export async function verifyUserPassword(
+  email: string,
+  password: string
+): Promise<User | null> {
+  const user = await findUserByEmail(email);
+  if (!user) return null;
+  const h = await hashPassword(password);
+  if (h !== user.passwordHash) return null;
+  return user;
+}
 
-  const now = Date.now();
+export async function updateUser(
+  userId: string,
+  patch: Partial<Pick<User, "displayName" | "passwordHash" | "a2fEnabled">>
+): Promise<User | null> {
+  const user = await findUserById(userId);
+  if (!user) return null;
+  const next: User = {
+    ...user,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+  const redis = getRedis();
+  await redis.set(userKey(user.email), JSON.stringify(next));
+  return next;
+}
+
+export async function createSession(user: User): Promise<string> {
+  const sid = randomSid(32);
   const session: Session = {
-    token: randomToken(48),
+    sid,
     userId: user.id,
     email: user.email,
-    createdAt: new Date(now).toISOString(),
-    expiresAt: new Date(now + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    a2fVerified: !user.a2fEnabled,
+    displayName: user.displayName,
+    expiresAt: Date.now() + SESSION_TTL_SEC * 1000,
   };
-
   const redis = getRedis();
-  await redis.set(`${KEYS.sessions}:${session.token}`, JSON.stringify(session), {
-    ex: 7 * 24 * 60 * 60,
+  await redis.set(sessionKey(sid), JSON.stringify(session), {
+    ex: SESSION_TTL_SEC,
   });
-
-  let emailSent = false;
-  if (user.a2fEnabled) {
-    const otp = randomOtp();
-    await redis.set(`${KEYS.a2f}:${session.token}`, otp, { ex: 300 });
-    const mail = await sendOtpEmail(user.email, otp, "login");
-    emailSent = mail.ok;
-    if (!mail.ok) {
-      console.error("[auth] OTP email failed:", mail.error);
-    }
-  }
-
-  return { ok: true, session, needA2f: user.a2fEnabled, emailSent };
+  return sid;
 }
 
-export async function changePassword(
-  userId: string,
-  oldPassword: string,
-  newPassword: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (newPassword.length < 6) {
-    return { ok: false, error: "Password baru minimal 6 karakter" };
-  }
-  const users = await loadUsers();
-  const u = users.find((x) => x.id === userId);
-  if (!u) return { ok: false, error: "User tidak ditemukan" };
-  const oldH = await hashPassword(oldPassword);
-  if (oldH !== u.passwordHash) {
-    return { ok: false, error: "Password lama salah" };
-  }
-  u.passwordHash = await hashPassword(newPassword);
-  u.updatedAt = new Date().toISOString();
-  await saveUsers(users);
-  return { ok: true };
-}
-
-export async function verifyA2f(
-  token: string,
-  code: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function destroySession(sid: string) {
+  if (!sid) return;
   const redis = getRedis();
-  const stored = await redis.get(`${KEYS.a2f}:${token}`);
-  if (!stored || String(stored) !== String(code).trim()) {
-    return { ok: false, error: "Kode A2F salah atau kedaluwarsa" };
-  }
-  const raw = await redis.get(`${KEYS.sessions}:${token}`);
-  if (!raw) return { ok: false, error: "Sesi tidak valid" };
-  const session: Session =
-    typeof raw === "string" ? JSON.parse(raw) : (raw as Session);
-  session.a2fVerified = true;
-  await redis.set(`${KEYS.sessions}:${token}`, JSON.stringify(session), {
-    ex: 7 * 24 * 60 * 60,
-  });
-  await redis.del(`${KEYS.a2f}:${token}`);
-  return { ok: true };
+  await redis.del(sessionKey(sid));
 }
 
-export async function enableA2f(
-  userId: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const users = await loadUsers();
-  const u = users.find((x) => x.id === userId);
-  if (!u) return { ok: false, error: "User tidak ditemukan" };
-  u.a2fEnabled = true;
-  u.a2fSecret = randomToken(16);
-  u.updatedAt = new Date().toISOString();
-  await saveUsers(users);
-  return { ok: true };
-}
-
-export async function disableA2f(
-  userId: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const users = await loadUsers();
-  const u = users.find((x) => x.id === userId);
-  if (!u) return { ok: false, error: "User tidak ditemukan" };
-  u.a2fEnabled = false;
-  u.a2fSecret = null;
-  u.updatedAt = new Date().toISOString();
-  await saveUsers(users);
-  return { ok: true };
-}
-
-export async function getSession(
-  token: string | null | undefined
+export async function getSessionFromSid(
+  sid: string | undefined | null
 ): Promise<Session | null> {
-  if (!token) return null;
+  if (!sid || !hasRedisEnv()) return null;
   const redis = getRedis();
-  const raw = await redis.get(`${KEYS.sessions}:${token}`);
+  const raw = await redis.get(sessionKey(sid));
   if (!raw) return null;
-  const session: Session =
-    typeof raw === "string" ? JSON.parse(raw) : (raw as Session);
-  if (new Date(session.expiresAt).getTime() < Date.now()) {
-    await redis.del(`${KEYS.sessions}:${token}`);
+  const s = (typeof raw === "string" ? JSON.parse(raw) : raw) as Session;
+  if (s.expiresAt < Date.now()) {
+    await redis.del(sessionKey(sid));
     return null;
   }
-  return session;
+  return s;
 }
 
-export async function getUserById(id: string): Promise<User | null> {
-  const users = await loadUsers();
-  return users.find((u) => u.id === id) ?? null;
-}
-
-export async function createCaptcha(): Promise<{ id: string; waitMs: number }> {
-  const id = randomToken(24);
-  const waitMs = 2000;
-  const redis = getRedis();
-  await redis.set(
-    `${KEYS.captcha}:${id}`,
-    JSON.stringify({ createdAt: Date.now(), waitMs, solved: false }),
-    { ex: 120 }
-  );
-  return { id, waitMs };
-}
-
-export async function solveCaptcha(
-  id: string
-): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
-  const redis = getRedis();
-  const raw = await redis.get(`${KEYS.captcha}:${id}`);
-  if (!raw) return { ok: false, error: "Captcha kedaluwarsa, muat ulang" };
-  const data =
-    typeof raw === "string"
-      ? (JSON.parse(raw) as { createdAt: number; waitMs: number; solved: boolean })
-      : (raw as { createdAt: number; waitMs: number; solved: boolean });
-  const elapsed = Date.now() - data.createdAt;
-  if (elapsed < data.waitMs) {
-    return {
-      ok: false,
-      error: `Tunggu ${Math.ceil((data.waitMs - elapsed) / 1000)} detik lagi`,
-    };
+export async function getSession(): Promise<Session | null> {
+  try {
+    const jar = await cookies();
+    const sid = jar.get(COOKIE_NAME)?.value;
+    return getSessionFromSid(sid);
+  } catch {
+    return null;
   }
-  const token = randomToken(32);
-  await redis.set(`${KEYS.captcha}:ok:${token}`, "1", { ex: 300 });
-  await redis.del(`${KEYS.captcha}:${id}`);
-  return { ok: true, token };
 }
 
-export async function verifyCaptchaToken(
-  token: string | null | undefined
-): Promise<boolean> {
-  if (!token) return false;
+/** Cookie options ONLY (no name/value) — for NextResponse.cookies.set */
+export function cookieOpts(maxAge = SESSION_TTL_SEC) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge,
+  };
+}
+
+export async function issueOtp(userId: string): Promise<string> {
+  const code = String(Math.floor(100000 + Math.random() * 900000));
   const redis = getRedis();
-  const v = await redis.get(`${KEYS.captcha}:ok:${token}`);
-  if (!v) return false;
-  await redis.del(`${KEYS.captcha}:ok:${token}`);
+  await redis.set(`walzpay:otp:${userId}`, code, { ex: 300 });
+  return code;
+}
+
+export async function verifyOtp(userId: string, code: string): Promise<boolean> {
+  const redis = getRedis();
+  const stored = await redis.get(`walzpay:otp:${userId}`);
+  if (!stored) return false;
+  if (String(stored) !== String(code).trim()) return false;
+  await redis.del(`walzpay:otp:${userId}`);
   return true;
 }
