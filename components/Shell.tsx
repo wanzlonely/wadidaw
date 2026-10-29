@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
 import { Nav } from "./Nav";
 
+/**
+ * Shell hanya layout UI.
+ * Auth dicek oleh AuthGuard di layout (localStorage token).
+ * Jangan cek sesi di sini — GET /api/auth tidak ada & membuat "Memeriksa sesi" stuck.
+ */
 export function Shell({
   active,
   subtitle,
@@ -15,43 +18,6 @@ export function Shell({
   children: React.ReactNode;
   redisOk?: boolean | null;
 }) {
-  const pathname = usePathname();
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    if (pathname === "/login" || pathname?.startsWith("/pay/")) {
-      setReady(true);
-      return;
-    }
-    let cancelled = false;
-    fetch("/api/auth", { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => {
-        if (cancelled) return;
-        if (!d.authenticated) {
-          window.location.href = "/login";
-        } else {
-          setReady(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) window.location.href = "/login";
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
-
-  if (!ready) {
-    return (
-      <main className="shell">
-        <p className="muted" style={{ textAlign: "center", marginTop: 80 }}>
-          Memeriksa sesi…
-        </p>
-      </main>
-    );
-  }
-
   return (
     <main className="shell">
       <header className="topbar">
