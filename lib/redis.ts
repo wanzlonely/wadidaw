@@ -27,4 +27,6 @@ export const KEYS = {
   dedup: "walzpay:dedup",
   /** Latest payment event for live polling / SSE */
   live: "walzpay:live",
+  /** Static QRIS templates (max 3) */
+  qrisStatic: "walzpay:qris-static",
 } as const;

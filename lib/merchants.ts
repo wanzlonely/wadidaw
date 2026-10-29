@@ -7,32 +7,37 @@ export type MerchantDef = {
 };
 
 /**
- * Catalog for dashboard + server package mapping.
- * builtInQrisHook = ada di parser bawaan QRIS Hook (per release publik).
- * DANA / WhatsApp: WALZPAY bisa parse jika payload dikirim ke webhook
- * (via forwarder, custom listener, atau setelah parser merchant ditambah).
+ * Sumber notifikasi e-wallet / merchant app.
+ * Dipilih sesuai QRIS statis yang di-upload (packageHint).
  */
 export const MERCHANTS: MerchantDef[] = [
   {
     id: "dana",
-    name: "DANA Bisnis",
+    name: "DANA",
     packages: ["id.dana", "id.dana.kasir"],
-    description: "DANA / DANA Kasir — butuh listener yang forward notifikasi",
-    builtInQrisHook: false,
-  },
-  {
-    id: "whatsapp",
-    name: "WhatsApp",
-    packages: ["com.whatsapp", "com.whatsapp.w4b"],
-    description: "Uji notifikasi WA (transfer bank / bukti bayar)",
+    description: "DANA / DANA Kasir",
     builtInQrisHook: false,
   },
   {
     id: "gopay",
     name: "GoPay Merchant",
-    packages: ["com.gojek.gopaymerchant"],
-    description: "GoPay Merchant",
+    packages: ["com.gojek.gopaymerchant", "com.gojek.app"],
+    description: "GoPay / Gojek",
     builtInQrisHook: true,
+  },
+  {
+    id: "ovo",
+    name: "OVO",
+    packages: ["ovo.id", "id.ovo.merchant"],
+    description: "OVO",
+    builtInQrisHook: false,
+  },
+  {
+    id: "shopeepay",
+    name: "ShopeePay",
+    packages: ["com.shopee.id", "com.beeasy.topup"],
+    description: "ShopeePay",
+    builtInQrisHook: false,
   },
   {
     id: "bri",
