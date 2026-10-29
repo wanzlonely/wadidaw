@@ -19,6 +19,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
+import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -37,7 +38,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
-        const val SITE_CACHE_BUST = "2.7.0"
+        const val SITE_CACHE_BUST = "2.8.1"
     }
 
     private val knownPackages = linkedMapOf(
@@ -83,11 +84,13 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         }
-        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.7.0"
+        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.8.1"
 
+        // Always wipe WebView cache so UI from Vercel is never stale
         webView.clearCache(true)
         webView.clearHistory()
         webView.clearFormData()
+        try { WebStorage.getInstance().deleteAllData() } catch (_: Exception) {}
 
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
@@ -111,11 +114,7 @@ class MainActivity : AppCompatActivity() {
         webView.webChromeClient = WebChromeClient()
 
         if (savedInstanceState == null) {
-            val bust = prefs().getString("last_cache_bust", null)
-            if (bust != SITE_CACHE_BUST) {
-                webView.clearCache(true)
-                prefs().edit().putString("last_cache_bust", SITE_CACHE_BUST).apply()
-            }
+            prefs().edit().putString("last_cache_bust", SITE_CACHE_BUST).apply()
             val ts = System.currentTimeMillis()
             webView.loadUrl("$SITE_URL/?v=$SITE_CACHE_BUST&t=$ts")
         } else {
