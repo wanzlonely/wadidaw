@@ -24,6 +24,8 @@ type Row = {
   statusFn?: (st: AndroidStatus | null) => boolean;
   optional?: boolean;
   isPackages?: boolean;
+  /** If true, never claim "ok" — always show action CTA (e.g. autostart) */
+  alwaysAction?: boolean;
 };
 
 const ROWS: Row[] = [
@@ -31,7 +33,7 @@ const ROWS: Row[] = [
     key: "notification",
     title: "Baca notifikasi e-wallet",
     desc: "Deteksi transfer masuk dari DANA, GoPay, OVO, ShopeePay, dan lainnya secara otomatis.",
-    okLabel: "Aktif",
+    okLabel: "Sudah diizinkan",
     badLabel: "Belum diizinkan",
     action: "openNotificationAccess",
     statusKey: "notification",
@@ -39,11 +41,11 @@ const ROWS: Row[] = [
   {
     key: "push",
     title: "Notifikasi aplikasi",
-    desc: "Tampilkan pemberitahuan dari WALZPAY di HP Anda. Berbeda dari izin membaca notifikasi app lain.",
-    okLabel: "Diizinkan",
+    desc: "Tampilkan pemberitahuan dari WALZPAY di HP Anda.",
+    okLabel: "Sudah diizinkan",
     badLabel: "Belum diizinkan",
     action: "requestPostNotifications",
-    statusFn: (st) => Boolean(st && (st as AndroidStatus & { push?: boolean }).push),
+    statusFn: (st) => Boolean(st?.push),
   },
   {
     key: "battery",
@@ -61,12 +63,13 @@ const ROWS: Row[] = [
     okLabel: "Sudah diatur",
     badLabel: "Perlu diatur",
     action: "openAutostart",
+    alwaysAction: true,
   },
   {
     key: "overlay",
     title: "Tampil di atas app lain",
     desc: "Opsional. Indikator singkat saat pembayaran berhasil diterima.",
-    okLabel: "Diizinkan",
+    okLabel: "Sudah diizinkan",
     badLabel: "Belum diizinkan",
     action: "openOverlay",
     statusKey: "overlay",
@@ -75,8 +78,8 @@ const ROWS: Row[] = [
   {
     key: "packages",
     title: "Sumber notifikasi",
-    desc: "Pilih aplikasi e-wallet yang dipantau. Hanya menampilkan app yang terpasang di HP.",
-    okLabel: "App dipilih",
+    desc: "Pilih aplikasi e-wallet yang dipantau. Tidak ada yang dipilih otomatis.",
+    okLabel: "Sudah dipilih",
     badLabel: "Belum memilih",
     action: "openPackagePicker",
     statusFn: (st) => (st?.packages ?? 0) > 0,
@@ -88,7 +91,6 @@ export function AndroidPermissions() {
   const [inApp, setInApp] = useState(false);
   const [st, setSt] = useState<AndroidStatus | null>(null);
   const [apiKey, setApiKey] = useState("");
-  const [hook, setHook] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pkgList, setPkgList] = useState<PackageItem[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -117,9 +119,6 @@ export function AndroidPermissions() {
   }, [refresh]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setHook(`${window.location.origin}/api/webhook`);
-    }
     apiFetch("/api/settings")
       .then(async (r) => {
         if (!r.ok) return;
@@ -171,7 +170,6 @@ export function AndroidPermissions() {
     }
     const list = getPackagesList();
     if (list.length === 0) {
-      // fallback to native if bridge not ready
       run("openPackagePicker", "Pilih sumber");
       return;
     }
@@ -195,10 +193,7 @@ export function AndroidPermissions() {
     const arr = Array.from(selected);
     const ok = setSelectedPackages(arr);
     if (ok) {
-      pushBubble({
-        title: `Sumber disimpan (${arr.length})`,
-        tone: "ok",
-      });
+      pushBubble({ title: `Sumber disimpan (${arr.length})`, tone: "ok" });
       setPickerOpen(false);
       setTimeout(refresh, 400);
       setTimeout(refresh, 1200);
@@ -208,11 +203,12 @@ export function AndroidPermissions() {
     setSaving(false);
   }
 
+  /** true = granted, false = denied, null = unknown / loading */
   function isOk(row: Row): boolean | null {
     if (!inApp) return null;
+    if (row.alwaysAction) return false;
     if (row.statusFn) return row.statusFn(st);
     if (row.statusKey && st) return Boolean(st[row.statusKey]);
-    if (row.statusKey && !st) return null;
     return null;
   }
 
@@ -225,7 +221,7 @@ export function AndroidPermissions() {
     );
   }, [pkgList, search]);
 
-  const requiredRows = ROWS.filter((r) => !r.optional);
+  const requiredRows = ROWS.filter((r) => !r.optional && !r.alwaysAction);
   const doneCount = requiredRows.filter((r) => isOk(r) === true).length;
   const totalRequired = requiredRows.length;
   const listenerOn = Boolean(st?.listener);
@@ -238,7 +234,7 @@ export function AndroidPermissions() {
         <div className="izin-hero-top">
           <div>
             <p className="izin-kicker">Monitoring pembayaran</p>
-            <h2 className="izin-title">Izin Android & Listener</h2>
+            <h2 className="izin-title">Izin Android</h2>
           </div>
           <div
             className={`izin-live-dot${listenerOn ? " on" : ""}`}
@@ -246,7 +242,7 @@ export function AndroidPermissions() {
           />
         </div>
         <p className="muted izin-lead">
-          Aktifkan izin di bawah agar transfer QRIS terdeteksi otomatis, bahkan saat Anda membuka aplikasi lain.
+          Aktifkan izin di bawah agar transfer QRIS terdeteksi otomatis.
         </p>
         <div className="izin-progress">
           <div
@@ -256,7 +252,7 @@ export function AndroidPermissions() {
         </div>
         <p className="izin-progress-label">
           {inApp
-            ? `${doneCount} dari ${totalRequired} siap${listenerOn ? " · Listener aktif" : ""}`
+            ? `${doneCount}/${totalRequired} izin wajib siap${listenerOn ? " · Listener ON" : ""}`
             : "Buka di aplikasi WALZPAY untuk mengatur izin"}
         </p>
       </section>
@@ -264,7 +260,7 @@ export function AndroidPermissions() {
       {!inApp ? (
         <section className="glass card-v2 anim-rise izin-browser-note">
           <p className="muted" style={{ margin: 0 }}>
-            Halaman ini mengatur izin native Android. Di browser, status tidak tersedia — buka lewat aplikasi WALZPAY di HP.
+            Halaman ini mengatur izin native Android. Buka lewat aplikasi WALZPAY di HP.
           </p>
         </section>
       ) : null}
@@ -279,14 +275,19 @@ export function AndroidPermissions() {
               : ok === false
                 ? row.badLabel
                 : "Memeriksa…";
-        const btnLabel =
-          ok === true
-            ? row.isPackages
-              ? "Kelola sumber"
-              : "Buka pengaturan"
-            : row.isPackages
-              ? "Pilih aplikasi"
-              : "Izinkan sekarang";
+
+        // Button text: NEVER show "Aktif" when denied
+        let btnLabel: string;
+        if (row.isPackages) {
+          btnLabel = ok === true ? "Kelola sumber" : "Pilih aplikasi";
+        } else if (ok === true) {
+          btnLabel = "Buka pengaturan";
+        } else {
+          btnLabel = "Izinkan";
+        }
+
+        const isGranted = ok === true;
+
         return (
           <section
             key={row.key}
@@ -304,14 +305,14 @@ export function AndroidPermissions() {
                 <p className="muted">{row.desc}</p>
               </div>
               <span
-                className={`izin-badge${ok === true ? " ok" : ok === false ? " bad" : ""}`}
+                className={`izin-badge${isGranted ? " ok" : ok === false ? " bad" : ""}`}
               >
                 {statusText}
               </span>
             </div>
             <button
               type="button"
-              className={`btn btn-block btn-press${ok === true ? " btn-ghost" : " btn-primary"}`}
+              className={`btn btn-block btn-press${isGranted ? " btn-ghost" : ""}`}
               style={{ marginTop: 12 }}
               onClick={() =>
                 row.isPackages ? openPackages() : run(row.action, row.title)
@@ -323,12 +324,13 @@ export function AndroidPermissions() {
         );
       })}
 
+      {/* Listener only — webhook URL is on Beranda, not duplicated here */}
       <section className="glass card-v2 anim-rise izin-row izin-listener">
         <div className="izin-row-top">
           <div className="izin-row-text">
             <h3>Listener monitoring</h3>
             <p className="muted">
-              Layanan latar belakang yang mengirim notifikasi pembayaran ke server WALZPAY.
+              Layanan latar belakang yang mengirim notifikasi pembayaran ke server.
             </p>
           </div>
           <span className={`izin-badge${listenerOn ? " ok" : " bad"}`}>
@@ -337,13 +339,13 @@ export function AndroidPermissions() {
         </div>
         <button
           type="button"
-          className={`btn btn-block btn-press${listenerOn ? " btn-ghost" : " btn-primary"}`}
+          className={`btn btn-block btn-press${listenerOn ? " btn-ghost" : ""}`}
           style={{ marginTop: 12 }}
           onClick={() => {
             if (!apiKey && !listenerOn) {
               pushBubble({
                 title: "API key belum ada",
-                sub: "Buka Pengaturan lalu salin atau generate API key",
+                sub: "Buka Profil / Pengaturan lalu generate API key",
                 tone: "err",
               });
               return;
@@ -356,15 +358,6 @@ export function AndroidPermissions() {
         >
           {listenerOn ? "Matikan listener" : "Aktifkan listener"}
         </button>
-        <button
-          type="button"
-          className="btn btn-block btn-ghost btn-press"
-          style={{ marginTop: 8 }}
-          onClick={() => run("saveListener", "Pengaturan disimpan")}
-        >
-          Simpan pengaturan
-        </button>
-        {hook ? <p className="izin-hook muted">{hook}</p> : null}
       </section>
 
       <section className="glass card-v2 anim-rise izin-row">
@@ -374,7 +367,7 @@ export function AndroidPermissions() {
               Shizuku <span className="izin-optional">opsional</span>
             </h3>
             <p className="muted">
-              Untuk HP yang agresif mematikan app di background. Tidak wajib untuk sebagian besar pengguna.
+              Untuk HP yang agresif mematikan app di background.
             </p>
           </div>
           <span className="izin-badge">{inApp ? st?.shizuku || "—" : "—"}</span>
@@ -453,7 +446,7 @@ export function AndroidPermissions() {
               </button>
               <button
                 type="button"
-                className="btn btn-primary btn-press"
+                className="btn btn-press"
                 disabled={saving}
                 onClick={savePackages}
               >
