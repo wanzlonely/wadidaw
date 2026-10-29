@@ -63,7 +63,6 @@
   to { transform: rotate(360deg); }
 }
 
-/* Status chips without emoji */
 .status-chip {
   display: inline-flex;
   align-items: center;
@@ -76,20 +75,87 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.status-chip.ok {
+.status-chip.ok,
+.status-chip.status-success {
   background: rgba(52, 211, 153, 0.14);
   color: #34d399;
   border-color: rgba(52, 211, 153, 0.28);
 }
 
-.status-chip.wait {
+.status-chip.wait,
+.status-chip.status-pending {
   background: rgba(251, 191, 36, 0.12);
   color: #fbbf24;
   border-color: rgba(251, 191, 36, 0.25);
 }
 
-.status-chip.bad {
+.status-chip.bad,
+.status-chip.status-expired,
+.status-chip.status-cancelled {
   background: rgba(255, 143, 163, 0.12);
   color: #ff8fa3;
   border-color: rgba(255, 143, 163, 0.25);
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.status-dot.status-success {
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.5);
+}
+
+.status-dot.status-pending {
+  background: #fbbf24;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+}
+
+.status-dot.status-expired,
+.status-dot.status-cancelled {
+  background: #ff8fa3;
+}
+
+.input-with-action {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-action .input {
+  width: 100%;
+  padding-right: 44px;
+}
+
+.input-action {
+  position: absolute;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.input-action:active {
+  transform: scale(0.94);
+}
+
+.inline-ico,
+.tab-ico,
+.lbl-ico {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -2px;
+  margin-right: 4px;
+  opacity: 0.9;
 }
