@@ -5,7 +5,6 @@ import { decodeQrisFromImage } from "@/lib/decode-qris-image";
 import { isLikelyQris, parseQrisMeta, type QrisMeta } from "@/lib/qris-convert";
 import { apiFetch } from "@/lib/client-api";
 import { pushBubble } from "@/components/BubbleToasts";
-import { AndroidPermissions } from "@/components/AndroidPermissions";
 
 type Settings = {
   displayName: string;
@@ -294,11 +293,9 @@ export function ProfileClient() {
         )}
       </section>
 
-      <AndroidPermissions apiKey={s.apiKey} webhookUrl={hookPath} webhookSecret={s.webhookSecret} />
-
       <section className="glass card-v2 anim-rise">
         <h2>Biaya admin dan masa berlaku</h2>
-        <p className="muted" style={{ marginBottom: 10 }}>Biaya admin selalu acak dalam rentang di bawah (anti-collision nominal).</p>
+        <p className="muted" style={{ marginBottom: 10 }}>Biaya admin selalu acak dalam rentang di bawah.</p>
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ flex: 1 }}>
             <label className="muted" style={{ fontSize: 12 }}>Min (Rp)</label>
