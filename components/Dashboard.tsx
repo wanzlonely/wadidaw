@@ -34,6 +34,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
   const [active, setActive] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
   const [pendingLive, setPendingLive] = useState(0);
+  const [successLive, setSuccessLive] = useState(0);
   const [forwards, setForwards] = useState<Forward[]>([]);
   const [week, setWeek] = useState<WeekDay[]>([]);
   const [url, setUrl] = useState("");
@@ -90,7 +91,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
 
   const refresh = useCallback(async () => {
     try {
-      const [pRes, sRes, fRes, hRes, wRes, oRes] = await Promise.all([
+      const [pRes, sRes, fRes, hRes, wRes, oRes, oAllRes] = await Promise.all([
         apiFetch("/api/payments").then(async (r) => ({
           ok: r.ok,
           data: await r.json(),
@@ -115,6 +116,10 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
           ok: r.ok,
           data: await r.json(),
         })),
+        apiFetch("/api/orders").then(async (r) => ({
+          ok: r.ok,
+          data: await r.json(),
+        })),
       ]);
 
       const rok = Boolean(hRes.data?.redis && hRes.data?.ok);
@@ -136,7 +141,6 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       setForwards(fRes.data?.forwards ?? []);
       if (wRes.ok) setWeek(wRes.data.days ?? []);
 
-      // Live pending: exclude expired
       const now = Date.now();
       const pendingList = (oRes.data?.orders ?? []) as {
         status: string;
@@ -148,6 +152,9 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         return true;
       }).length;
       setPendingLive(live);
+
+      const allOrders = (oAllRes.data?.orders ?? []) as { status: string }[];
+      setSuccessLive(allOrders.filter((o) => o.status === "success").length);
 
       const count = pRes.data.stats?.count ?? 0;
       const latest: Payment | null = pRes.data.stats?.latest ?? null;
@@ -259,6 +266,10 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
   }
 
   const maxWeek = Math.max(1, ...week.map((d) => d.amount));
+  const todayAmt = stats?.todayAmount ?? 0;
+  const todayCnt = stats?.todayCount ?? 0;
+  const totalAmt = stats?.totalAmount ?? 0;
+  const totalCnt = stats?.count ?? 0;
 
   return (
     <>
@@ -270,25 +281,34 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         </section>
       ) : null}
 
-      <section className="glass dash-hero">
-        <p className="label" style={{ textAlign: "center", marginBottom: 4 }}>
-          Masuk hari ini
+      <section className="glass card-v2 dash-hero">
+        <div className="hero-glow" aria-hidden />
+        <p className="hero-kicker">Masuk hari ini</p>
+        <p className="hero-rp">{formatRp(todayAmt)}</p>
+        <p className="hero-sub">
+          {todayCnt} transaksi hari ini · total keseluruhan {formatRp(totalAmt)}
         </p>
-        <p className="amount" style={{ textAlign: "center", fontSize: "2rem" }}>
-          {formatRp(stats?.todayAmount ?? 0)}
-        </p>
-        <p className="muted" style={{ textAlign: "center", marginTop: 6 }}>
-          {stats?.todayCount ?? 0} transaksi · total{" "}
-          {formatRp(stats?.totalAmount ?? 0)}
-        </p>
-        <div className="stats-grid" style={{ marginTop: 16 }}>
-          <div className="stat-box">
-            <p className="label">Hari ini</p>
-            <p className="amount sm">{stats?.todayCount ?? 0}</p>
+
+        <div className="hero-stats-grid">
+          <div className="hero-stat">
+            <span className="hero-stat-label">Hari ini</span>
+            <span className="hero-stat-value">{todayCnt}</span>
+            <span className="hero-stat-hint">{formatRp(todayAmt)}</span>
           </div>
-          <div className="stat-box">
-            <p className="label">Pending</p>
-            <p className="amount sm">{pendingLive}</p>
+          <div className="hero-stat">
+            <span className="hero-stat-label">Pending</span>
+            <span className="hero-stat-value">{pendingLive}</span>
+            <span className="hero-stat-hint">menunggu bayar</span>
+          </div>
+          <div className="hero-stat">
+            <span className="hero-stat-label">Sukses</span>
+            <span className="hero-stat-value">{successLive}</span>
+            <span className="hero-stat-hint">lunas</span>
+          </div>
+          <div className="hero-stat">
+            <span className="hero-stat-label">Semua</span>
+            <span className="hero-stat-value">{totalCnt}</span>
+            <span className="hero-stat-hint">{formatRp(totalAmt)}</span>
           </div>
         </div>
       </section>
