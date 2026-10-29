@@ -37,8 +37,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
-        /** Bump when website UI changes so WebView does not keep stale JS/HTML. */
-        const val SITE_CACHE_BUST = "2.5.0"
+        const val SITE_CACHE_BUST = "2.6.0"
     }
 
     private val knownPackages = linkedMapOf(
@@ -84,9 +83,8 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         }
-        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.5.0"
+        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.6.0"
 
-        // Always wipe cache so Izin page + SVG nav never show stale UI
         webView.clearCache(true)
         webView.clearHistory()
         webView.clearFormData()
@@ -118,7 +116,6 @@ class MainActivity : AppCompatActivity() {
                 webView.clearCache(true)
                 prefs().edit().putString("last_cache_bust", SITE_CACHE_BUST).apply()
             }
-            // cache-bust query + random so CDN/WebView never serve old JS
             val ts = System.currentTimeMillis()
             webView.loadUrl("$SITE_URL/?v=$SITE_CACHE_BUST&t=$ts")
         } else {
@@ -248,7 +245,7 @@ class MainActivity : AppCompatActivity() {
                 val on = !p.getBoolean("listener_enabled", false)
                 if (on) {
                     if (p.getString("api_key", "").isNullOrBlank()) {
-                        toast("Buka Setel, pastikan API key ada, lalu aktifkan lagi")
+                        toast("Buka Profil, pastikan API key ada, lalu aktifkan lagi")
                         return@runOnUiThread
                     }
                     p.edit().putBoolean("listener_enabled", true).apply()
@@ -329,7 +326,6 @@ class MainActivity : AppCompatActivity() {
         if (available.isEmpty()) { toast("Tidak ada app terpasang"); return }
         val packages = available.keys.toList()
         val labels = packages.map { "${available[it]}\n$it" }.toTypedArray()
-        // No auto-select — only what user previously saved
         val current = prefs().getStringSet("selected_packages", null)?.toMutableSet() ?: mutableSetOf()
         current.retainAll(packages.toSet())
         val checked = packages.map { current.contains(it) }.toBooleanArray()
