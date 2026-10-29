@@ -55,8 +55,56 @@ function statusLabel(st: string) {
   return st;
 }
 
-function StatusDot({ st }: { st: string }) {
-  return <span className={`status-dot status-${st}`} aria-hidden />;
+/** Unique SVG per status */
+function StatusIcon({ st }: { st: string }) {
+  const common = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none" as const,
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true as const,
+  };
+  if (st === "success") {
+    return (
+      <svg {...common} className="status-ico success">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M8 12.5l2.5 2.5L16 9" />
+      </svg>
+    );
+  }
+  if (st === "pending") {
+    return (
+      <svg {...common} className="status-ico pending">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </svg>
+    );
+  }
+  if (st === "expired") {
+    return (
+      <svg {...common} className="status-ico expired">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5M12 16h.01" />
+      </svg>
+    );
+  }
+  if (st === "cancelled") {
+    return (
+      <svg {...common} className="status-ico cancelled">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9 9l6 6M15 9l-6 6" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <circle cx="12" cy="12" r="9" />
+    </svg>
+  );
 }
 
 export function RiwayatClient() {
@@ -199,8 +247,8 @@ export function RiwayatClient() {
                   animationDelay: `${Math.min(i, 8) * 0.04}s`,
                 }}
               >
-                <span className="riwayat-ico" aria-hidden>
-                  <StatusDot st={st} />
+                <span className={`riwayat-ico ico-${st}`} aria-hidden>
+                  <StatusIcon st={st} />
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="amount sm">
