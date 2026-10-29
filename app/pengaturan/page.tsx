@@ -3,7 +3,7 @@ import { ProfileClient } from "@/components/ProfileClient";
 
 export default function PengaturanPage() {
   return (
-    <Shell active="/pengaturan" subtitle="QRIS \u00b7 biaya \u00b7 webhook">
+    <Shell active="/pengaturan" subtitle="QRIS, biaya & webhook">
       <ProfileClient />
     </Shell>
   );
