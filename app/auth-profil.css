@@ -324,6 +324,9 @@
 }
 
 .profil-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   font-weight: 600;
   padding: 5px 11px;
@@ -331,6 +334,11 @@
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--ink-dim);
+}
+
+.profil-pill svg {
+  flex-shrink: 0;
+  opacity: 0.9;
 }
 
 .profil-pill.ok {
@@ -343,6 +351,21 @@
   margin: 10px 0 0;
   font-size: 11px;
   color: var(--ink-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.profil-section-title {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.profil-section-title svg {
+  opacity: 0.85;
+  flex-shrink: 0;
 }
 
 .profil-details {
@@ -405,7 +428,29 @@
   accent-color: #6eb6ff;
 }
 
+.profil-show-pw-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .profil-logout {
   color: var(--rose) !important;
   border-color: rgba(255, 143, 163, 0.25) !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn .spin-ico,
+.btn svg.spin-ico {
+  display: inline-block;
+  vertical-align: -3px;
+  margin-right: 6px;
+  animation: spin-ico 0.8s linear infinite;
+}
+
+@keyframes spin-ico {
+  to { transform: rotate(360deg); }
 }
