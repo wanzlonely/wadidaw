@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { decodeQrisFromImage } from "@/lib/decode-qris-image";
-import { isLikelyQris, parseQrisMeta } from "@/lib/qris-convert";
+import { isLikelyQris, parseQrisMeta, type QrisMeta } from "@/lib/qris-convert";
 import { apiFetch } from "@/lib/client-api";
 import { pushBubble } from "@/components/BubbleToasts";
 
@@ -41,8 +41,7 @@ export function ProfileClient() {
   const [feeMaxStr, setFeeMaxStr] = useState("99");
   const [preview, setPreview] = useState<{
     qrisString: string;
-    merchantName: string;
-    merchantCity: string;
+    meta: QrisMeta;
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -90,14 +89,16 @@ export function ProfileClient() {
         throw new Error("QR terdeteksi tapi bukan QRIS EMVCo yang valid");
       }
       const meta = parseQrisMeta(raw);
-      setPreview({
-        qrisString: raw,
-        merchantName: meta.merchantName,
-        merchantCity: meta.merchantCity,
+      setPreview({ qrisString: raw, meta });
+      pushBubble({
+        title: "QRIS terdeteksi",
+        sub: meta.merchantName,
+        tone: "info",
       });
-      pushBubble({ title: "QRIS terdeteksi", sub: "Periksa lalu simpan", tone: "info" });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setErr(msg);
+      pushBubble({ title: "Gagal membaca QR", sub: msg, tone: "err" });
     } finally {
       setScanning(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -112,16 +113,25 @@ export function ProfileClient() {
         method: "POST",
         body: JSON.stringify({
           qrisString: preview.qrisString,
-          label: preview.merchantName,
+          label: preview.meta.merchantName,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
         setErr(data.error || "Gagal simpan QRIS");
+        pushBubble({
+          title: "Gagal simpan QRIS",
+          sub: data.error || "Coba lagi",
+          tone: "err",
+        });
         return;
       }
       setPreview(null);
-      pushBubble({ title: "QRIS disimpan", sub: "Perubahan telah disimpan", tone: "ok" });
+      pushBubble({
+        title: "QRIS disimpan",
+        sub: preview.meta.merchantName,
+        tone: "ok",
+      });
       load();
     } finally {
       setBusy(null);
@@ -149,7 +159,11 @@ export function ProfileClient() {
       const data = await res.json();
       if (!res.ok) {
         setErr(data.error || "Gagal simpan");
-        pushBubble({ title: "Gagal menyimpan", sub: data.error || "Coba lagi", tone: "err" });
+        pushBubble({
+          title: "Gagal menyimpan",
+          sub: data.error || "Coba lagi",
+          tone: "err",
+        });
         return;
       }
       setS({
@@ -161,7 +175,11 @@ export function ProfileClient() {
       });
       setFeeMinStr(String(data.settings.feeMin ?? s.feeMin));
       setFeeMaxStr(String(data.settings.feeMax ?? s.feeMax));
-      pushBubble({ title: "Perubahan disimpan", sub: "Pengaturan berhasil diperbarui", tone: "ok" });
+      pushBubble({
+        title: "Perubahan disimpan",
+        sub: "Pengaturan berhasil diperbarui",
+        tone: "ok",
+      });
     } catch {
       setErr("Koneksi gagal");
       pushBubble({ title: "Koneksi gagal", tone: "err" });
@@ -225,7 +243,11 @@ export function ProfileClient() {
       const data = await res.json();
       if (res.ok) {
         setS((prev) => (prev ? { ...prev, apiKey: data.apiKey } : prev));
-        pushBubble({ title: "API key baru dibuat", sub: "Perubahan telah disimpan", tone: "ok" });
+        pushBubble({
+          title: "API key baru dibuat",
+          sub: "Perubahan telah disimpan",
+          tone: "ok",
+        });
       } else {
         pushBubble({ title: "Gagal rotate key", tone: "err" });
       }
@@ -250,6 +272,8 @@ export function ProfileClient() {
       </section>
     );
   }
+
+  const m = preview?.meta;
 
   return (
     <>
@@ -305,27 +329,45 @@ export function ProfileClient() {
               {scanning ? "Membaca QR…" : "Upload gambar QRIS"}
             </button>
 
-            {preview ? (
-              <div className="preview-box anim-pop">
-                <p style={{ fontWeight: 600, color: "var(--ink)" }}>
-                  {preview.merchantName}
-                </p>
-                <p className="muted">{preview.merchantCity || "—"}</p>
-                <p
-                  className="muted"
-                  style={{
-                    fontSize: 11,
-                    fontFamily: "monospace",
-                    wordBreak: "break-all",
-                    marginTop: 8,
-                  }}
-                >
-                  {preview.qrisString.slice(0, 80)}…
-                </p>
+            {preview && m ? (
+              <div className="preview-box anim-pop qris-info-panel">
+                <h3 className="qris-info-title">QRIS Information</h3>
+                <div className="qris-info-grid">
+                  <div className="qris-info-row">
+                    <span>Merchant</span>
+                    <strong>{m.merchantName || "—"}</strong>
+                  </div>
+                  <div className="qris-info-row">
+                    <span>City</span>
+                    <strong>{m.merchantCity || "—"}</strong>
+                  </div>
+                  <div className="qris-info-row">
+                    <span>Postal Code</span>
+                    <strong>{m.postalCode || "—"}</strong>
+                  </div>
+                  <div className="qris-info-row">
+                    <span>Issuer</span>
+                    <strong>{m.issuer || "—"}</strong>
+                  </div>
+                  <div className="qris-info-row">
+                    <span>Method</span>
+                    <strong>
+                      {m.method === "dynamic" ? "Dynamic" : "Static"}
+                    </strong>
+                  </div>
+                  <div className="qris-info-row">
+                    <span>Category</span>
+                    <strong>{m.category || "—"}</strong>
+                  </div>
+                  <div className="qris-info-row">
+                    <span>Currency</span>
+                    <strong>{m.currency || "IDR (Rupiah)"}</strong>
+                  </div>
+                </div>
                 <button
                   type="button"
-                  className="btn btn-block btn-press"
-                  style={{ marginTop: 12 }}
+                  className="btn btn-primary btn-block btn-press"
+                  style={{ marginTop: 14 }}
                   disabled={busy === "qris"}
                   onClick={saveStatic}
                 >
@@ -354,7 +396,9 @@ export function ProfileClient() {
         <h2>Sumber notifikasi</h2>
         <p className="muted" style={{ marginBottom: 8 }}>
           Pilih aplikasi sumber notifikasi di aplikasi listener Android
-          (tombol <strong style={{ color: "var(--ink)" }}>Pilih sumber notifikasi</strong>).
+          (tombol{" "}
+          <strong style={{ color: "var(--ink)" }}>Pilih sumber notifikasi</strong>
+          ).
         </p>
       </section>
 
@@ -365,28 +409,36 @@ export function ProfileClient() {
         </p>
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ flex: 1 }}>
-            <label className="muted" style={{ fontSize: 12 }}>Min (Rp)</label>
+            <label className="muted" style={{ fontSize: 12 }}>
+              Min (Rp)
+            </label>
             <input
               className="input"
               style={{ width: "100%", marginTop: 4 }}
               type="text"
               inputMode="numeric"
               value={feeMinStr}
-              onChange={(e) => setFeeMinStr(e.target.value.replace(/[^\d]/g, ""))}
+              onChange={(e) =>
+                setFeeMinStr(e.target.value.replace(/[^\d]/g, ""))
+              }
               onBlur={() => {
                 if (feeMinStr === "") setFeeMinStr("0");
               }}
             />
           </div>
           <div style={{ flex: 1 }}>
-            <label className="muted" style={{ fontSize: 12 }}>Max (Rp)</label>
+            <label className="muted" style={{ fontSize: 12 }}>
+              Max (Rp)
+            </label>
             <input
               className="input"
               style={{ width: "100%", marginTop: 4 }}
               type="text"
               inputMode="numeric"
               value={feeMaxStr}
-              onChange={(e) => setFeeMaxStr(e.target.value.replace(/[^\d]/g, ""))}
+              onChange={(e) =>
+                setFeeMaxStr(e.target.value.replace(/[^\d]/g, ""))
+              }
               onBlur={() => {
                 if (feeMaxStr === "") setFeeMaxStr("0");
               }}
