@@ -25,4 +25,6 @@ export const KEYS = {
   service: "walzpay:service:active",
   seq: "walzpay:seq",
   dedup: "walzpay:dedup",
+  /** Latest payment event for live polling / SSE */
+  live: "walzpay:live",
 } as const;

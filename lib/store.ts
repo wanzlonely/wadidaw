@@ -1,4 +1,5 @@
 import { getRedis, KEYS } from "./redis";
+import { allocateUniqueCode, buildTotalAmount } from "./unique-code";
 
 export type PaymentEvent = {
   id: string;
@@ -16,7 +17,14 @@ export type PaymentEvent = {
 
 export type Order = {
   id: string;
+  /** Nominal dasar yang diminta merchant (tanpa kode unik) */
   amount: number;
+  /** Kode unik 3 digit (100–999) untuk anti-collision */
+  uniqueCode: number;
+  /** Nominal yang harus ditransfer pelanggan = amount + uniqueCode */
+  totalAmount: number;
+  /** Token publik untuk payment link /pay/[token] */
+  token: string;
   reference?: string | null;
   customerName?: string | null;
   note?: string | null;
@@ -25,6 +33,8 @@ export type Order = {
   paidAt?: string | null;
   matchedPaymentId?: string | null;
   expiresAt?: string | null;
+  /** Mode: dynamic = pakai unique code; static = amount apa adanya (legacy) */
+  mode: "dynamic" | "static";
 };
 
 export type DebugLog = {
@@ -57,6 +67,15 @@ async function nextId(prefix: string) {
   const redis = getRedis();
   const n = await redis.incr(KEYS.seq);
   return `${prefix}_${n}_${Date.now()}`;
+}
+
+function randomToken(): string {
+  const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let s = "";
+  for (let i = 0; i < 12; i++) {
+    s += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return s;
 }
 
 // ─── Logs ───────────────────────────────────────────────
@@ -108,7 +127,31 @@ export async function isDuplicatePayment(
 async function loadOrders(): Promise<Order[]> {
   const redis = getRedis();
   const raw = await redis.lrange(KEYS.orders, 0, MAX_ORDERS - 1);
-  return raw.map((x) => parseRow<Order>(x));
+  return raw.map((x) => {
+    const o = parseRow<Order & { uniqueCode?: number; totalAmount?: number; token?: string; mode?: string }>(x);
+    // Backfill legacy orders (static QRIS)
+    if (o.uniqueCode == null) {
+      o.uniqueCode = 0;
+      o.totalAmount = o.amount;
+      o.mode = "static";
+    }
+    if (!o.token) o.token = o.id;
+    if (!o.mode) o.mode = o.uniqueCode > 0 ? "dynamic" : "static";
+    return o as Order;
+  });
+}
+
+/** Collect unique codes currently used by non-terminal pending orders */
+async function takenUniqueCodes(): Promise<Set<number>> {
+  const orders = await loadOrders();
+  const now = Date.now();
+  const taken = new Set<number>();
+  for (const o of orders) {
+    if (o.status !== "pending") continue;
+    if (o.expiresAt && new Date(o.expiresAt).getTime() < now) continue;
+    if (o.uniqueCode >= 100 && o.uniqueCode <= 999) taken.add(o.uniqueCode);
+  }
+  return taken;
 }
 
 export async function createOrder(input: {
@@ -117,6 +160,8 @@ export async function createOrder(input: {
   customerName?: string | null;
   note?: string | null;
   expiresInMinutes?: number;
+  /** default true = dynamic QRIS (unique code) */
+  dynamic?: boolean;
 }): Promise<Order> {
   const redis = getRedis();
   const now = new Date();
@@ -125,9 +170,26 @@ export async function createOrder(input: {
       ? new Date(now.getTime() + input.expiresInMinutes * 60_000).toISOString()
       : null;
 
+  const base = Math.round(input.amount);
+  const useDynamic = input.dynamic !== false;
+
+  let uniqueCode = 0;
+  let totalAmount = base;
+  let mode: Order["mode"] = "static";
+
+  if (useDynamic) {
+    const taken = await takenUniqueCodes();
+    uniqueCode = allocateUniqueCode(taken);
+    totalAmount = buildTotalAmount(base, uniqueCode);
+    mode = "dynamic";
+  }
+
   const row: Order = {
     id: await nextId("ord"),
-    amount: Math.round(input.amount),
+    amount: base,
+    uniqueCode,
+    totalAmount,
+    token: randomToken(),
     reference: input.reference ?? null,
     customerName: input.customerName ?? null,
     note: input.note ?? null,
@@ -136,11 +198,18 @@ export async function createOrder(input: {
     paidAt: null,
     matchedPaymentId: null,
     expiresAt,
+    mode,
   };
 
   await redis.lpush(KEYS.orders, JSON.stringify(row));
   await redis.ltrim(KEYS.orders, 0, MAX_ORDERS - 1);
-  await addLog("info", `Order pending Rp${row.amount}`, { id: row.id });
+  await addLog(
+    "info",
+    mode === "dynamic"
+      ? `Order dynamic pending base Rp${row.amount} → bayar Rp${row.totalAmount} (kode ${row.uniqueCode})`
+      : `Order static pending Rp${row.amount}`,
+    { id: row.id, token: row.token, totalAmount: row.totalAmount }
+  );
   return row;
 }
 
@@ -148,6 +217,16 @@ export async function listOrders(status?: Order["status"]): Promise<Order[]> {
   const all = await loadOrders();
   if (!status) return all;
   return all.filter((o) => o.status === status);
+}
+
+export async function getOrderById(id: string): Promise<Order | null> {
+  const all = await loadOrders();
+  return all.find((o) => o.id === id) ?? null;
+}
+
+export async function getOrderByToken(token: string): Promise<Order | null> {
+  const all = await loadOrders();
+  return all.find((o) => o.token === token) ?? null;
 }
 
 export async function cancelOrder(id: string): Promise<Order | null> {
@@ -165,8 +244,13 @@ export async function cancelOrder(id: string): Promise<Order | null> {
   return null;
 }
 
+/**
+ * Match incoming payment amount against pending orders.
+ * Dynamic orders match on totalAmount; static (legacy) on amount.
+ * FIFO: oldest pending first.
+ */
 export async function matchPendingOrder(
-  amount: number,
+  paymentAmount: number,
   paymentId: string
 ): Promise<Order | null> {
   const redis = getRedis();
@@ -174,10 +258,18 @@ export async function matchPendingOrder(
   const now = Date.now();
 
   for (let i = raw.length - 1; i >= 0; i--) {
-    const item = parseRow<Order>(raw[i]);
+    const item = parseRow<Order & { totalAmount?: number; uniqueCode?: number; mode?: string }>(raw[i]);
 
     if (item.status !== "pending") continue;
-    if (item.amount !== amount) continue;
+
+    const total =
+      item.totalAmount != null ? item.totalAmount : item.amount;
+    const target =
+      item.mode === "static" || (item.uniqueCode ?? 0) === 0
+        ? item.amount
+        : total;
+
+    if (target !== paymentAmount) continue;
 
     if (item.expiresAt && new Date(item.expiresAt).getTime() < now) {
       item.status = "expired";
@@ -192,9 +284,10 @@ export async function matchPendingOrder(
     await addLog("info", `Order matched → success ${item.id}`, {
       orderId: item.id,
       paymentId,
-      amount,
+      paymentAmount,
+      totalAmount: total,
     });
-    return item;
+    return item as Order;
   }
   return null;
 }
@@ -217,6 +310,22 @@ export async function addPayment(
     amount: row.amount,
     merchantId: row.merchantId,
   });
+  // Publish lightweight event for SSE consumers
+  try {
+    await redis.set(
+      KEYS.live,
+      JSON.stringify({
+        type: "payment",
+        id: row.id,
+        amount: row.amount,
+        merchantId: row.merchantId,
+        at: row.receivedAt,
+      }),
+      { ex: 60 }
+    );
+  } catch {
+    /* ignore */
+  }
   return row;
 }
 
@@ -285,6 +394,23 @@ export async function getStats() {
     latest: payments[0] ?? null,
     pendingOrders: orders.filter((o) => o.status === "pending").length,
     successOrders: orders.filter((o) => o.status === "success").length,
+  };
+}
+
+export async function getLiveSnapshot() {
+  const redis = getRedis();
+  const live = await redis.get(KEYS.live);
+  const payments = await listPayments();
+  const pending = (await listOrders("pending")).slice(0, 20);
+  return {
+    live: live
+      ? typeof live === "string"
+        ? JSON.parse(live)
+        : live
+      : null,
+    latestPayments: payments.slice(0, 10),
+    pendingOrders: pending,
+    stats: await getStats(),
   };
 }
 
