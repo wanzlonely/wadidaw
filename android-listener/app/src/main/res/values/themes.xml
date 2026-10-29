@@ -1,8 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.WalzpayListener" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
-        <item name="colorPrimary">@android:color/holo_blue_dark</item>
-        <item name="colorPrimaryVariant">@android:color/holo_blue_dark</item>
-        <item name="colorOnPrimary">@android:color/white</item>
+    <style name="Theme.WalzpayListener" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/walz_primary</item>
+        <item name="colorPrimaryVariant">@color/walz_primary_dark</item>
+        <item name="colorSecondary">@color/walz_accent</item>
+        <item name="android:statusBarColor">@color/walz_bg</item>
+        <item name="android:navigationBarColor">@color/walz_bg</item>
+        <item name="android:windowBackground">@color/walz_bg</item>
+        <item name="android:textColorPrimary">@color/walz_text</item>
+        <item name="android:textColorSecondary">@color/walz_muted</item>
+        <item name="colorOnPrimary">@color/walz_text</item>
+        <item name="materialButtonStyle">@style/WalzButton</item>
+    </style>
+
+    <style name="WalzButton" parent="Widget.MaterialComponents.Button">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">14sp</item>
+        <item name="cornerRadius">14dp</item>
+        <item name="backgroundTint">@color/walz_primary</item>
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingBottom">14dp</item>
+    </style>
+
+    <style name="WalzButton.Secondary">
+        <item name="backgroundTint">@color/walz_card</item>
+        <item name="strokeColor">@color/walz_card_stroke</item>
+        <item name="strokeWidth">1dp</item>
     </style>
 </resources>
