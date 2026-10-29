@@ -34,6 +34,8 @@ export type Order = {
   qrisStaticId?: string | null;
   dynamicQris?: string | null;
   adminFee?: number;
+  /** Bot/website webhook when order becomes success */
+  callbackUrl?: string | null;
 };
 
 export type DebugLog = {
@@ -194,6 +196,7 @@ export async function createOrder(input: {
   adminFee?: number;
   minFee?: number;
   maxFee?: number;
+  callbackUrl?: string | null;
 }): Promise<Order> {
   const redis = getRedis();
   const now = new Date();
@@ -245,6 +248,7 @@ export async function createOrder(input: {
     expiresAt,
     mode,
     adminFee: finalAdmin,
+    callbackUrl: input.callbackUrl?.trim() || null,
   };
 
   await redis.lpush(K().orders, JSON.stringify(row));
@@ -342,6 +346,31 @@ export async function matchPendingOrder(
       );
     } catch {
       /* ignore */
+    }
+    const cb = (item as Order).callbackUrl;
+    if (cb && /^https?:\/\//i.test(cb)) {
+      try {
+        await fetch(cb, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event: "order.paid",
+            orderId: item.id,
+            token: item.token,
+            reference: item.reference ?? null,
+            amount: item.amount,
+            totalAmount: total,
+            adminFee: item.adminFee ?? 0,
+            status: "success",
+            paidAt: item.paidAt,
+            paymentId,
+          }),
+          signal: AbortSignal.timeout(8000),
+        });
+        await addLog("info", `Callback sent → ${cb}`, { orderId: item.id });
+      } catch (e) {
+        await addLog("warn", `Callback failed ${cb}`, String(e));
+      }
     }
     return item as Order;
   }
@@ -522,12 +551,30 @@ export async function setServiceActive(v: boolean) {
   await addLog("info", v ? "Service activated" : "Service paused");
 }
 
-export async function forwardPayment(payment: PaymentEvent) {
+export async function forwardPayment(
+  payment: PaymentEvent,
+  matchedOrder?: Order | null
+) {
   const targets = (await listForwards()).filter((f) => f.enabled);
   if (!targets.length) {
     await updatePaymentForwardStatus(payment.id, "skip");
     return;
   }
+  const payload = {
+    event: matchedOrder ? "order.paid" : "payment.received",
+    payment,
+    order: matchedOrder
+      ? {
+          id: matchedOrder.id,
+          token: matchedOrder.token,
+          reference: matchedOrder.reference ?? null,
+          amount: matchedOrder.amount,
+          totalAmount: matchedOrder.totalAmount,
+          status: matchedOrder.status,
+          paidAt: matchedOrder.paidAt ?? null,
+        }
+      : null,
+  };
   let ok = 0;
   await Promise.all(
     targets.map(async (t) => {
@@ -535,7 +582,7 @@ export async function forwardPayment(payment: PaymentEvent) {
         const res = await fetch(t.url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payment),
+          body: JSON.stringify(payload),
           signal: AbortSignal.timeout(8000),
         });
         if (res.ok) ok++;
