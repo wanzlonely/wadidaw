@@ -1,7 +1,7 @@
 /**
- * Static → Dynamic QRIS converter (EMVCo / BI).
- * Adapted from https://github.com/verssache/qris-dinamis
- * Amount is baked into tag 54 (no separate tip) so e-wallet pays exact total.
+ * Static → Dynamic QRIS converter (EMVCo / BI QRIS).
+ * Amount is baked into tag 54 so e-wallets (GoPay, OVO, DANA, ShopeePay, etc.)
+ * charge the exact total — no separate tip field.
  */
 
 type TLV = { tag: string; length: number; value: string; children?: TLV[] };
@@ -11,10 +11,18 @@ export type FeeOption =
   | { type: "percent"; value: number }
   | null;
 
+/** Tags whose value is itself a TLV stream */
 const NESTED_TAGS = new Set([
   ...Array.from({ length: 26 }, (_, i) => String(i + 26).padStart(2, "0")),
   "62",
 ]);
+
+/** Canonical EMVCo / QRIS tag order (subset we care about when rebuilding) */
+const TAG_ORDER = [
+  "00", "01",
+  ...Array.from({ length: 26 }, (_, i) => String(i + 26).padStart(2, "0")),
+  "52", "53", "54", "55", "56", "57", "58", "59", "60", "61", "62", "63",
+];
 
 export function calculateCRC16(str: string): string {
   let crc = 0xffff;
@@ -59,6 +67,14 @@ function makeTLV(tag: string, value: string): TLV {
   return { tag, length: value.length, value };
 }
 
+function sortByTagOrder(elements: TLV[]): TLV[] {
+  const rank = (tag: string) => {
+    const i = TAG_ORDER.indexOf(tag);
+    return i === -1 ? 500 + parseInt(tag, 10) : i;
+  };
+  return [...elements].sort((a, b) => rank(a.tag) - rank(b.tag));
+}
+
 export function parseQrisMeta(qrisString: string): {
   merchantName: string;
   merchantCity: string;
@@ -93,8 +109,8 @@ export function computeAdminFee(
 }
 
 /**
- * Convert static QRIS → dynamic.
- * amount = total the customer pays (integer IDR, no decimals).
+ * Convert static QRIS → dynamic with fixed amount (tag 54).
+ * Compatible with major ID e-wallets when the source static QR is valid.
  */
 export function convertStaticToDynamic(
   qrisString: string,
@@ -109,44 +125,52 @@ export function convertStaticToDynamic(
     throw new Error("Nominal harus > 0");
   }
 
+  // Integer IDR only — no decimals (BI QRIS / currency 360)
   const amountStr = String(Math.round(amount));
+  if (!/^\d{1,13}$/.test(amountStr)) {
+    throw new Error("Nominal di luar batas QRIS");
+  }
 
   const elements = parseTLV(clean);
   if (elements.length === 0) {
     throw new Error("Gagal parse TLV QRIS");
   }
 
-  const result: TLV[] = [];
-  let amountInserted = false;
-  const managedTags = new Set(["54", "55", "56", "57", "63"]);
+  // Drop amount / tip / CRC — we rebuild them
+  const skip = new Set(["54", "55", "56", "57", "63"]);
+  const kept: TLV[] = [];
 
   for (const el of elements) {
-    if (managedTags.has(el.tag)) continue;
-
+    if (skip.has(el.tag)) continue;
     if (el.tag === "01") {
-      result.push(makeTLV("01", "12"));
+      // 12 = dynamic / amount known
+      kept.push(makeTLV("01", "12"));
       continue;
     }
-
-    if (el.tag === "58" && !amountInserted) {
-      result.push(makeTLV("54", amountStr));
-      amountInserted = true;
-    }
-
-    result.push(el);
+    kept.push(el);
   }
 
-  if (!amountInserted) {
-    result.push(makeTLV("54", amountStr));
+  // Ensure currency IDR (360) exists
+  if (!kept.some((e) => e.tag === "53")) {
+    kept.push(makeTLV("53", "360"));
   }
 
-  const withoutCRC = buildTLVString(result);
+  // Fixed transaction amount
+  kept.push(makeTLV("54", amountStr));
+
+  const ordered = sortByTagOrder(kept);
+  const withoutCRC = buildTLVString(ordered);
   const crcInput = withoutCRC + "6304";
   const crc = calculateCRC16(crcInput);
   const out = crcInput + crc;
 
   if (!isLikelyQris(out)) {
     throw new Error("Hasil konversi QRIS tidak valid");
+  }
+
+  // Sanity: amount tag present
+  if (!out.includes(`54${amountStr.length.toString().padStart(2, "0")}${amountStr}`)) {
+    throw new Error("Tag nominal gagal disisipkan");
   }
 
   return out;
