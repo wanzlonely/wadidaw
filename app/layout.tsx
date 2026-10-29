@@ -4,6 +4,7 @@ import "./extra.css";
 import "./izin.css";
 import "./auth-profil.css";
 import "./pages-v2.css";
+import "./boot-loader.css";
 
 export const metadata: Metadata = {
   title: "WALZPAY — Liquid Glass Dashboard",
