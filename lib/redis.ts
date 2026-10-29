@@ -17,16 +17,25 @@ export function hasRedisEnv(): boolean {
   );
 }
 
-/** Global keys (users, sessions) */
+/** Global keys */
 export const KEYS = {
   users: "walzpay:users",
   sessions: "walzpay:sessions",
   a2f: "walzpay:a2f",
   captcha: "walzpay:captcha",
   seq: "walzpay:seq",
+  payments: "walzpay:payments",
+  orders: "walzpay:orders",
+  logs: "walzpay:logs",
+  forwards: "walzpay:forwards",
+  service: "walzpay:service:active",
+  dedup: "walzpay:dedup",
+  live: "walzpay:live",
+  qrisStatic: "walzpay:qris-static",
+  settings: "walzpay:settings",
 } as const;
 
-/** Per-user data keys — setiap akun terisolasi */
+/** Per-user data keys */
 export function userKeys(userId: string) {
   const p = `walzpay:u:${userId}`;
   return {
