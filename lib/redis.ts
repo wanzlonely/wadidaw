@@ -28,4 +28,7 @@ export const KEYS = {
   live: "walzpay:live",
   qrisStatic: "walzpay:qris-static",
   settings: "walzpay:settings",
+  users: "walzpay:users",
+  sessions: "walzpay:sessions",
+  a2f: "walzpay:a2f",
 } as const;
