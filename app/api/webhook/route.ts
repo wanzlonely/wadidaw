@@ -11,6 +11,7 @@ import {
 import { parsePaymentBody } from "@/lib/parse-payment";
 import { hasRedisEnv } from "@/lib/redis";
 import { findUserIdByApiKey } from "@/lib/settings";
+import { setTenant } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,6 +66,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Scope all store operations to this tenant when API key resolved a user
+  if (auth.userId) {
+    setTenant(auth.userId);
+  }
+
   try {
     if (!(await getServiceActive())) {
       await addLog("warn", "Webhook ignored: service paused");
@@ -108,7 +114,6 @@ export async function POST(req: NextRequest) {
 
     const row = await addPayment({
       ...parsed.data,
-      userId: auth.userId,
     });
 
     const matched = await matchPendingOrder(row.amount, row.id);
