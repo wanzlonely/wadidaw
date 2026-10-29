@@ -10,17 +10,36 @@ import {
 } from "@/lib/store";
 import { parsePaymentBody } from "@/lib/parse-payment";
 import { hasRedisEnv } from "@/lib/redis";
+import { findUserIdByApiKey } from "@/lib/settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function checkSecret(req: NextRequest) {
+async function resolveAuth(req: NextRequest): Promise<{
+  ok: boolean;
+  userId: string | null;
+}> {
+  const apiKey =
+    req.headers.get("x-api-key") ||
+    req.headers.get("x-walzpay-key") ||
+    "";
+  if (apiKey) {
+    const uid = await findUserIdByApiKey(apiKey.trim());
+    if (uid) return { ok: true, userId: uid };
+  }
+
   const secret = process.env.WEBHOOK_SECRET;
-  if (!secret) return true;
-  const h =
-    req.headers.get("x-walzpay-secret") ||
-    req.headers.get("x-webhook-secret");
-  return h === secret;
+  if (secret) {
+    const h =
+      req.headers.get("x-walzpay-secret") ||
+      req.headers.get("x-webhook-secret");
+    if (h === secret) return { ok: true, userId: null };
+    if (apiKey) return { ok: false, userId: null };
+    return { ok: false, userId: null };
+  }
+
+  if (apiKey) return { ok: false, userId: null };
+  return { ok: true, userId: null };
 }
 
 export async function POST(req: NextRequest) {
@@ -36,9 +55,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!checkSecret(req)) {
+  const auth = await resolveAuth(req);
+  if (!auth.ok) {
     try {
-      await addLog("warn", "Webhook rejected: bad secret");
+      await addLog("warn", "Webhook rejected: bad secret/api key");
     } catch {
       /* ignore */
     }
@@ -61,7 +81,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
-    await addLog("info", "Webhook received", body);
+    await addLog("info", "Webhook received", {
+      ...body,
+      _userId: auth.userId,
+    });
 
     const parsed = parsePaymentBody(body);
     if (!parsed.ok) {
@@ -72,7 +95,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Dedup: same amount + package within ~2 menit
     if (await isDuplicatePayment(parsed.data.amount, parsed.data.packageName)) {
       await addLog("warn", `Duplicate skipped Rp${parsed.data.amount}`, {
         packageName: parsed.data.packageName,
@@ -84,9 +106,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const row = await addPayment(parsed.data);
+    const row = await addPayment({
+      ...parsed.data,
+      userId: auth.userId,
+    });
 
-    // Auto-match pending order dengan nominal sama
     const matched = await matchPendingOrder(row.amount, row.id);
     if (matched) {
       await attachMatchedOrder(row.id, matched.id);
@@ -116,7 +140,8 @@ export async function GET() {
     service: "WALZPAY webhook",
     redis: hasRedisEnv(),
     method: "POST JSON from android-listener / QRIS Hook",
-    features: ["parse", "dedup", "match pending order", "forward"],
+    features: ["parse", "dedup", "match pending order", "forward", "multi-tenant api key"],
     secretHeaders: ["x-webhook-secret", "x-walzpay-secret"],
+    apiKeyHeaders: ["x-api-key", "x-walzpay-key"],
   });
 }
