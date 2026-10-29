@@ -30,6 +30,22 @@ type Payment = {
   matchedOrderId?: string | null;
 };
 
+/** Effective status — pending past expiresAt becomes expired on client */
+function effectiveStatus(o: Order): string {
+  if (o.status === "pending" && o.expiresAt) {
+    if (new Date(o.expiresAt).getTime() <= Date.now()) return "expired";
+  }
+  return o.status;
+}
+
+function statusLabel(st: string) {
+  if (st === "success") return "Sukses";
+  if (st === "pending") return "Menunggu";
+  if (st === "expired") return "Kedaluwarsa";
+  if (st === "cancelled") return "Dibatalkan";
+  return st;
+}
+
 export function RiwayatClient() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -62,9 +78,11 @@ export function RiwayatClient() {
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
-      if (statusFilter !== "all" && o.status !== statusFilter) return false;
+      const st = effectiveStatus(o);
+      if (statusFilter !== "all" && st !== statusFilter) return false;
       if (!q) return true;
-      const s = `${o.id} ${o.amount} ${o.totalAmount} ${o.status} ${o.customerName ?? ""} ${o.note ?? ""}`.toLowerCase();
+      const s =
+        `${o.id} ${o.amount} ${o.totalAmount} ${st} ${o.customerName ?? ""} ${o.note ?? ""}`.toLowerCase();
       return s.includes(q.toLowerCase());
     });
   }, [orders, q, statusFilter]);
@@ -73,10 +91,10 @@ export function RiwayatClient() {
     const header =
       "id,status,amount,totalAmount,adminFee,createdAt,paidAt,expiresAt\n";
     const rows = filtered
-      .map(
-        (o) =>
-          `${o.id},${o.status},${o.amount},${o.totalAmount ?? o.amount},${o.adminFee ?? 0},${o.createdAt},${o.paidAt ?? ""},${o.expiresAt ?? ""}`
-      )
+      .map((o) => {
+        const st = effectiveStatus(o);
+        return `${o.id},${st},${o.amount},${o.totalAmount ?? o.amount},${o.adminFee ?? 0},${o.createdAt},${o.paidAt ?? ""},${o.expiresAt ?? ""}`;
+      })
       .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const a = document.createElement("a");
@@ -90,14 +108,6 @@ export function RiwayatClient() {
     await load();
     setBusy(false);
   }
-
-  const statusLabel = (st: string) => {
-    if (st === "success") return "Sukses";
-    if (st === "pending") return "Menunggu";
-    if (st === "expired") return "Kedaluwarsa";
-    if (st === "cancelled") return "Dibatalkan";
-    return st;
-  };
 
   return (
     <>
@@ -149,35 +159,38 @@ export function RiwayatClient() {
             Belum ada transaksi
           </p>
         ) : (
-          filtered.map((o, i) => (
-            <div
-              key={o.id}
-              className={`list-item anim-rise status-${o.status}`}
-              style={{
-                marginTop: 10,
-                animationDelay: `${Math.min(i, 8) * 0.04}s`,
-              }}
-            >
-              <div style={{ flex: 1 }}>
-                <div className="amount sm">
-                  {formatRp(o.totalAmount ?? o.amount)}
+          filtered.map((o, i) => {
+            const st = effectiveStatus(o);
+            return (
+              <div
+                key={o.id}
+                className={`list-item anim-rise status-${st}`}
+                style={{
+                  marginTop: 10,
+                  animationDelay: `${Math.min(i, 8) * 0.04}s`,
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div className="amount sm">
+                    {formatRp(o.totalAmount ?? o.amount)}
+                  </div>
+                  <p className="muted" style={{ fontSize: 12 }}>
+                    Nominal {formatRp(o.amount)}
+                    {(o.adminFee ?? 0) > 0
+                      ? ` + admin ${formatRp(o.adminFee!)}`
+                      : ""}
+                  </p>
+                  <p className="muted" style={{ fontSize: 11 }}>
+                    {formatTime(o.createdAt)}
+                    {o.paidAt ? ` · dibayar ${formatTime(o.paidAt)}` : ""}
+                  </p>
                 </div>
-                <p className="muted" style={{ fontSize: 12 }}>
-                  Nominal {formatRp(o.amount)}
-                  {(o.adminFee ?? 0) > 0
-                    ? ` + admin ${formatRp(o.adminFee!)}`
-                    : ""}
-                </p>
-                <p className="muted" style={{ fontSize: 11 }}>
-                  {formatTime(o.createdAt)}
-                  {o.paidAt ? ` · dibayar ${formatTime(o.paidAt)}` : ""}
-                </p>
+                <span className={`status-chip status-${st}`}>
+                  {statusLabel(st)}
+                </span>
               </div>
-              <span className={`status-chip status-${o.status}`}>
-                {statusLabel(o.status)}
-              </span>
-            </div>
-          ))
+            );
+          })
         )}
       </section>
 
