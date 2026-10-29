@@ -30,8 +30,9 @@ type StaticQris = {
   merchantCity: string;
 };
 
+/** High-contrast QR with error correction M for reliable e-wallet scans */
 function qrImageUrl(payload: string) {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&data=${encodeURIComponent(payload)}`;
+  return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&ecc=M&data=${encodeURIComponent(payload)}`;
 }
 
 function remainLabel(sec: number) {
@@ -294,11 +295,12 @@ export function OrdersClient() {
 
               {showOrder.dynamicQris ? (
                 <div className="qr-frame">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={qrImageUrl(showOrder.dynamicQris)}
                     alt="QRIS dinamis"
-                    width={260}
-                    height={260}
+                    width={280}
+                    height={280}
                   />
                 </div>
               ) : (
