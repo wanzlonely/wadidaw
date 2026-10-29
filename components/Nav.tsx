@@ -2,47 +2,49 @@
 
 import Link from "next/link";
 
-/** Simple stroke icons — avoid complex paths that break on WebView */
 function IconHome() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden>
-      <path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1V10.5z" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden>
+      <path d="M3.5 11.2L12 4.2l8.5 7" />
+      <path d="M6.2 10.2V19a1.2 1.2 0 0 0 1.2 1.2h3.3v-5.2h2.6V20.2h3.3A1.2 1.2 0 0 0 17.8 19v-8.8" />
     </svg>
   );
 }
 
 function IconHistory() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden>
+      <path d="M4.2 12a7.8 7.8 0 1 0 1.8-5" />
+      <path d="M4.2 5.5v4.2H8.4" />
+      <path d="M12 8.2V12l2.6 1.6" />
     </svg>
   );
 }
 
 function IconOrders() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden>
-      <rect x="5" y="4" width="14" height="16" rx="2" />
-      <path d="M9 9h6M9 13h4" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden>
+      <path d="M8.2 4.5h7.6l1.4 2.2H6.8L8.2 4.5z" />
+      <path d="M6.5 6.7h11v11.6a1.8 1.8 0 0 1-1.8 1.8H8.3a1.8 1.8 0 0 1-1.8-1.8V6.7z" />
+      <path d="M10 11.2h4M10 14.8h2.8" />
     </svg>
   );
 }
 
 function IconIzin() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden>
-      <path d="M12 3l7 3v5c0 4.5-3 8-7 9.5C8 19 5 15.5 5 11V6l7-3z" />
-      <path d="M9.5 12l2 2 3.5-3.5" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden>
+      <path d="M12 3.2l6.6 2.6v4.8c0 4.2-2.7 7.6-6.6 9.2-3.9-1.6-6.6-5-6.6-9.2V5.8L12 3.2z" />
+      <path d="M9.4 12.1l1.9 1.9 3.6-3.7" />
     </svg>
   );
 }
 
 function IconProfile() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden>
-      <circle cx="12" cy="9" r="3.5" />
-      <path d="M6 19c1.2-2.8 3.4-4 6-4s4.8 1.2 6 4" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden>
+      <circle cx="12" cy="9" r="3.4" />
+      <path d="M5.6 19.2c1.1-2.9 3.3-4.3 6.4-4.3s5.3 1.4 6.4 4.3" />
     </svg>
   );
 }
