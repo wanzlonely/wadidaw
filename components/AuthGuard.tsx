@@ -23,36 +23,42 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const token = localStorage.getItem("walzpay_token");
     if (!token) {
+      setReady(true);
       router.replace("/login");
       return;
     }
 
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 8000);
     fetch("/api/auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "me", token }),
+      signal: ctrl.signal,
     })
       .then(async (r) => {
-        const data = await r.json();
+        clearTimeout(to);
+        const data = await r.json().catch(() => ({}));
         if (!r.ok || !data.ok) {
           localStorage.removeItem("walzpay_token");
           router.replace("/login");
+          setReady(true);
           return;
         }
-        if (data.needA2f || data.a2fVerified === false) {
-          // masih butuh A2F — biarkan di login
-          if (!data.a2fVerified) {
-            localStorage.removeItem("walzpay_token");
-            router.replace("/login");
-            return;
-          }
+        if (data.a2fVerified === false) {
+          localStorage.removeItem("walzpay_token");
+          router.replace("/login");
+          setReady(true);
+          return;
         }
         setOk(true);
         setReady(true);
       })
       .catch(() => {
+        clearTimeout(to);
         localStorage.removeItem("walzpay_token");
         router.replace("/login");
+        setReady(true);
       });
   }, [pathname, router]);
 
