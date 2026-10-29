@@ -15,15 +15,21 @@ export function pushBubble(b: Omit<Bubble, "id">) {
   pushFn?.(b);
 }
 
+function toneIcon(tone?: string) {
+  if (tone === "ok") return "✓";
+  if (tone === "err") return "!";
+  return "i";
+}
+
 export function BubbleToasts() {
   const [items, setItems] = useState<Bubble[]>([]);
 
   const push = useCallback((b: Omit<Bubble, "id">) => {
     const id = `b_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    setItems((prev) => [...prev.slice(-4), { ...b, id }]);
+    setItems((prev) => [...prev.slice(-3), { ...b, id }]);
     setTimeout(() => {
       setItems((prev) => prev.filter((x) => x.id !== id));
-    }, 4200);
+    }, 3800);
   }, []);
 
   useEffect(() => {
@@ -35,13 +41,14 @@ export function BubbleToasts() {
 
   return (
     <div className="bubble-stack" aria-live="polite">
-      {items.map((b, i) => (
+      {items.map((b) => (
         <div
           key={b.id}
           className={`bubble-toast tone-${b.tone || "info"}`}
-          style={{ animationDelay: `${i * 0.05}s` }}
         >
-          <div className="bubble-dot" />
+          <div className="bubble-icon" aria-hidden>
+            {toneIcon(b.tone)}
+          </div>
           <div className="bubble-body">
             <strong>{b.title}</strong>
             {b.sub ? <span>{b.sub}</span> : null}
