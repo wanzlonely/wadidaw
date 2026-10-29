@@ -30,13 +30,11 @@
             android:textColor="@color/walz_muted" />
     </LinearLayout>
 
-    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+    <!-- FAB disembunyikan; id tetap agar kode lama tidak crash -->
+    <View
         android:id="@+id/fabListener"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:text="Izin Android"
-        android:textColor="@android:color/white" />
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
 
 </FrameLayout>
