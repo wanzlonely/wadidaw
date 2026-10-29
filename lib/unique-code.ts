@@ -34,10 +34,31 @@ export function allocateAdminFee(
   }
 
   throw new Error(
-    `Semua biaya admin ${lo}–${hi} sedang dipakai untuk nominal ini. Tunggu order expired atau naikkan rentang admin di Profil.`
+    `Semua biaya admin ${lo}\u2013${hi} sedang dipakai untuk nominal ini. Tunggu order expired atau naikkan rentang admin di Profil.`
   );
 }
 
 export function buildTotalAmount(baseAmount: number, adminFee: number): number {
   return Math.round(baseAmount) + Math.max(0, Math.round(adminFee));
+}
+
+/**
+ * Legacy 3-digit code allocator (kept for older store.ts on remote until fully updated).
+ * Prefer allocateAdminFee for new flows.
+ */
+export function allocateUniqueCode(taken: Set<number>): number {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const code = 100 + Math.floor(Math.random() * 900);
+    if (!taken.has(code)) {
+      taken.add(code);
+      return code;
+    }
+  }
+  for (let code = 100; code <= 999; code++) {
+    if (!taken.has(code)) {
+      taken.add(code);
+      return code;
+    }
+  }
+  throw new Error("Semua kode unik 100\u2013999 sedang dipakai. Tunggu order expired.");
 }
