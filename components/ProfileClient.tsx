@@ -5,6 +5,19 @@ import { decodeQrisFromImage } from "@/lib/decode-qris-image";
 import { isLikelyQris, parseQrisMeta, type QrisMeta } from "@/lib/qris-convert";
 import { apiFetch } from "@/lib/client-api";
 import { pushBubble } from "@/components/BubbleToasts";
+import {
+  IconAlert,
+  IconCamera,
+  IconUpload,
+  IconCash,
+  IconTag,
+  IconLink,
+  IconKey,
+  IconCopy,
+  IconRefresh,
+  IconSpinner,
+  IconQr,
+} from "@/components/Icons";
 
 type Settings = {
   displayName: string;
@@ -233,24 +246,33 @@ export function ProfileClient() {
   }
 
   const m = preview?.meta;
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "https://walzpaynew.vercel.app";
 
   return (
     <div className="setel-v2">
       {err ? (
         <section className="glass card-v2 anim-shake">
-          <p style={{ color: "var(--rose)", margin: 0 }}>⚠️ {err}</p>
+          <p style={{ color: "var(--rose)", margin: 0 }}>
+            <span className="inline-ico">
+              <IconAlert size={15} />
+            </span>{" "}
+            {err}
+          </p>
         </section>
       ) : null}
 
       <section className="glass card-v2 anim-rise">
-        <h2>📷 QRIS statis · maks. 3</h2>
+        <h2>
+          <IconCamera size={16} /> QRIS statis · maks. 3
+        </h2>
         <p className="muted" style={{ marginBottom: 12 }}>
           Upload foto QRIS dari galeri. String dan info dibaca otomatis.
         </p>
         {templates.map((t) => (
           <div key={t.id} className="list-item" style={{ marginTop: 10 }}>
             <span className="riwayat-ico" aria-hidden>
-              🧾
+              <IconQr size={18} />
             </span>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, color: "var(--ink)" }}>{t.label || t.merchantName}</div>
@@ -268,7 +290,15 @@ export function ProfileClient() {
           <div style={{ marginTop: 14 }}>
             <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => onPickImage(e.target.files?.[0] ?? null)} />
             <button type="button" className="btn btn-block btn-press" disabled={scanning || busy !== null} onClick={() => fileRef.current?.click()}>
-              {scanning ? "⏳ Membaca QR…" : "📤 Upload gambar QRIS"}
+              {scanning ? (
+                <>
+                  <IconSpinner size={15} /> Membaca QR…
+                </>
+              ) : (
+                <>
+                  <IconUpload size={15} /> Upload gambar QRIS
+                </>
+              )}
             </button>
             {preview && m ? (
               <div className="preview-box anim-pop qris-info-panel">
@@ -297,7 +327,9 @@ export function ProfileClient() {
       </section>
 
       <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.04s" }}>
-        <h2>💵 Biaya admin & masa berlaku</h2>
+        <h2>
+          <IconCash size={16} /> Biaya admin & masa berlaku
+        </h2>
         <p className="muted" style={{ marginBottom: 10 }}>Biaya admin acak dalam rentang di bawah.</p>
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ flex: 1 }}>
@@ -323,7 +355,9 @@ export function ProfileClient() {
       </section>
 
       <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.08s" }}>
-        <h2>🏷️ Nama tampilan</h2>
+        <h2>
+          <IconTag size={16} /> Nama tampilan
+        </h2>
         <input className="input" style={{ width: "100%", marginTop: 8 }} value={s.displayName} onChange={(e) => setS({ ...s, displayName: e.target.value })} />
         <button type="button" className="btn btn-block btn-press" style={{ marginTop: 12 }} disabled={busy === "name"} onClick={saveName}>
           {busy === "name" ? "Menyimpan…" : "Simpan nama"}
@@ -331,10 +365,12 @@ export function ProfileClient() {
       </section>
 
       <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.12s" }}>
-        <h2>🔗 Webhook HP</h2>
+        <h2>
+          <IconLink size={16} /> Webhook HP
+        </h2>
         <code className="code">{hookPath}</code>
         <button type="button" className="btn btn-ghost btn-press" style={{ marginTop: 8 }} onClick={() => copy(hookPath, "Webhook URL")}>
-          📋 Salin URL
+          <IconCopy size={14} /> Salin URL
         </button>
         <label className="muted" style={{ display: "block", marginTop: 14 }}>Webhook secret</label>
         <input className="input" style={{ width: "100%", marginTop: 4 }} placeholder="Opsional" value={s.webhookSecret} onChange={(e) => setS({ ...s, webhookSecret: e.target.value })} />
@@ -344,16 +380,41 @@ export function ProfileClient() {
       </section>
 
       <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.16s" }}>
-        <h2>🔑 API key</h2>
+        <h2>
+          <IconKey size={16} /> API key
+        </h2>
+        <p className="muted" style={{ marginBottom: 8, fontSize: 12 }}>
+          Pakai header <code>X-Api-Key</code> dari bot/website untuk buat pesanan & terima event bayar.
+        </p>
         <code className="code">{s.apiKey}</code>
         <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
           <button type="button" className="btn btn-ghost btn-press" onClick={() => copy(s.apiKey, "API key")}>
-            📋 Salin
+            <IconCopy size={14} /> Salin
           </button>
           <button type="button" className="btn btn-ghost btn-press" disabled={busy === "rotate"} onClick={rotateKey}>
-            {busy === "rotate" ? "…" : "🔄 Rotate"}
+            {busy === "rotate" ? <IconSpinner size={14} /> : <><IconRefresh size={14} /> Rotate</>}
           </button>
         </div>
+      </section>
+
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.2s" }}>
+        <h2>
+          <IconLink size={16} /> Sinkron bot / website
+        </h2>
+        <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, marginBottom: 10 }}>
+          1) Bot buat order: <code>POST {origin}/api/orders</code> + header <code>X-Api-Key</code>
+          <br />
+          Body: amount, qrisStaticId, callbackUrl (opsional)
+          <br />
+          2) Tampilkan <code>order.dynamicQris</code> ke pembeli
+          <br />
+          3) App HP pantau notifikasi → webhook → status success
+          <br />
+          4) WALZPAY kirim <code>order.paid</code> ke callbackUrl + Forward URL
+        </p>
+        <p className="muted" style={{ fontSize: 11 }}>
+          Tambah Forward URL di dashboard jika bot butuh push global (Telegram/WA/custom).
+        </p>
       </section>
     </div>
   );
