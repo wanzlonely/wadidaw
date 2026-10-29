@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createOrder,
-  listOrders,
-  cancelOrder,
-} from "@/lib/store";
-import { hasRedisEnv } from "@/lib/redis";
+import { createOrder, listOrders, cancelOrder } from "@/lib/store";
+import { getStaticQris } from "@/lib/static-qris";
+import { convertStaticToDynamic, computeAdminFee } from "@/lib/qris-convert";
+import { getSettings } from "@/lib/settings";
+import { hasRedisEnv, getRedis, KEYS } from "@/lib/redis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,18 +45,77 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const order = await createOrder({
-    amount,
-    reference: body.reference != null ? String(body.reference) : null,
-    customerName: body.customerName != null ? String(body.customerName) : null,
-    note: body.note != null ? String(body.note) : null,
-    expiresInMinutes:
-      body.expiresInMinutes != null ? Number(body.expiresInMinutes) : 60,
-    // default true di store; kirim dynamic:false jika ingin static legacy
-    dynamic: body.dynamic === false ? false : true,
-  });
+  try {
+    const settings = await getSettings();
 
-  return NextResponse.json({ ok: true, order }, { status: 201 });
+    let adminFee = 0;
+    if (body.adminFee != null && Number.isFinite(Number(body.adminFee))) {
+      adminFee = Math.max(0, Math.round(Number(body.adminFee)));
+    } else if (settings.feeType === "fixed") {
+      adminFee = computeAdminFee(amount, {
+        type: "fixed",
+        value: settings.feeValue,
+      });
+    } else if (settings.feeType === "percent") {
+      adminFee = computeAdminFee(amount, {
+        type: "percent",
+        value: settings.feeValue,
+      });
+    }
+
+    const expiresInMinutes =
+      body.expiresInMinutes != null
+        ? Number(body.expiresInMinutes)
+        : settings.defaultExpiryMinutes || 30;
+
+    const order = await createOrder({
+      amount,
+      reference: body.reference != null ? String(body.reference) : null,
+      customerName: body.customerName != null ? String(body.customerName) : null,
+      note: body.note != null ? String(body.note) : null,
+      expiresInMinutes,
+      dynamic: body.dynamic === false ? false : true,
+      adminFee,
+    });
+
+    const qrisStaticId =
+      body.qrisStaticId != null ? String(body.qrisStaticId) : null;
+    if (qrisStaticId) {
+      const tpl = await getStaticQris(qrisStaticId);
+      if (!tpl) {
+        return NextResponse.json(
+          { error: "Template QRIS tidak ditemukan" },
+          { status: 400 }
+        );
+      }
+      const dynamicQris = convertStaticToDynamic(
+        tpl.qrisString,
+        order.totalAmount,
+        null
+      );
+      const redis = getRedis();
+      const raw = await redis.lrange(KEYS.orders, 0, 49);
+      for (let i = 0; i < raw.length; i++) {
+        const item =
+          typeof raw[i] === "string" ? JSON.parse(raw[i] as string) : raw[i];
+        if (item.id === order.id) {
+          item.qrisStaticId = qrisStaticId;
+          item.dynamicQris = dynamicQris;
+          await redis.lset(KEYS.orders, i, JSON.stringify(item));
+          (order as { qrisStaticId?: string }).qrisStaticId = qrisStaticId;
+          (order as { dynamicQris?: string }).dynamicQris = dynamicQris;
+          break;
+        }
+      }
+    }
+
+    return NextResponse.json({ ok: true, order }, { status: 201 });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 400 }
+    );
+  }
 }
 
 export async function DELETE(req: NextRequest) {
