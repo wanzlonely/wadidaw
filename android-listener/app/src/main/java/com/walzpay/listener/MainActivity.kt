@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
-        const val SITE_CACHE_BUST = "2.6.0"
+        const val SITE_CACHE_BUST = "2.7.0"
     }
 
     private val knownPackages = linkedMapOf(
@@ -83,7 +83,7 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         }
-        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.6.0"
+        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.7.0"
 
         webView.clearCache(true)
         webView.clearHistory()
