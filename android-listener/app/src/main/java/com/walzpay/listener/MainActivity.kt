@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -17,6 +16,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.walzpay.listener.databinding.ActivityMainBinding
+import rikka.shizuku.Shizuku
 
 class MainActivity : AppCompatActivity() {
 
@@ -40,10 +40,29 @@ class MainActivity : AppCompatActivity() {
         "com.google.android.apps.messaging" to "Messages (SMS)"
     )
 
+    private val shizukuPermissionListener =
+        Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+            if (requestCode == ShizukuHelper.REQUEST_CODE) {
+                AppLog.append(
+                    this,
+                    if (grantResult == PackageManager.PERMISSION_GRANTED)
+                        "Shizuku izin diberikan"
+                    else
+                        "Shizuku izin ditolak"
+                )
+                refreshUi()
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        try {
+            Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
+        } catch (_: Throwable) {
+        }
 
         val prefs = getSharedPreferences("walzpay", Context.MODE_PRIVATE)
 
@@ -61,7 +80,27 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnBattery.setOnClickListener {
-            requestIgnoreBattery()
+            OemHelper.openBatterySettings(this)
+        }
+
+        binding.btnAutostart.setOnClickListener {
+            OemHelper.openAutostartSettings(this)
+        }
+
+        binding.btnShizuku.setOnClickListener {
+            if (!ShizukuHelper.isAvailable()) {
+                Toast.makeText(
+                    this,
+                    "Pasang & jalankan app Shizuku dulu (Wireless debugging)",
+                    Toast.LENGTH_LONG
+                ).show()
+                AppLog.append(this, "Shizuku belum tersedia")
+            } else if (ShizukuHelper.isGranted()) {
+                Toast.makeText(this, "Shizuku sudah terhubung", Toast.LENGTH_SHORT).show()
+            } else {
+                ShizukuHelper.requestPermission()
+            }
+            refreshUi()
         }
 
         binding.btnPickPackages.setOnClickListener {
@@ -107,15 +146,26 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     startService(i)
                 }
-                AppLog.append(this, "Listener ON · FG service start")
+                WatchdogReceiver.schedule(this)
+                AppLog.append(this, "Listener ON · FG + Watchdog")
+                ShizukuHelper.logStatus(this)
             } else {
                 stopService(Intent(this, KeepAliveService::class.java))
+                WatchdogReceiver.cancel(this)
                 AppLog.append(this, "Listener OFF")
             }
 
             Toast.makeText(this, "Pengaturan disimpan", Toast.LENGTH_SHORT).show()
             refreshUi()
         }
+    }
+
+    override fun onDestroy() {
+        try {
+            Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener)
+        } catch (_: Throwable) {
+        }
+        super.onDestroy()
     }
 
     override fun onResume() {
@@ -201,9 +251,7 @@ class MainActivity : AppCompatActivity() {
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                // list filter optional — selection state stays in `current`
-            }
+            override fun afterTextChanged(s: Editable?) {}
         })
     }
 
@@ -220,6 +268,7 @@ class MainActivity : AppCompatActivity() {
             "⚠️ Baterai: masih dioptimasi sistem"
         }
 
+        binding.tvShizukuStatus.text = ShizukuHelper.statusText()
         binding.tvLogs.text = AppLog.read(this)
     }
 
@@ -237,20 +286,5 @@ class MainActivity : AppCompatActivity() {
     private fun isIgnoringBattery(): Boolean {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         return pm.isIgnoringBatteryOptimizations(packageName)
-    }
-
-    private fun requestIgnoreBattery() {
-        try {
-            if (isIgnoringBattery()) {
-                Toast.makeText(this, "Sudah tanpa optimasi baterai", Toast.LENGTH_SHORT).show()
-                return
-            }
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:$packageName")
-            }
-            startActivity(intent)
-        } catch (e: Exception) {
-            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-        }
     }
 }
