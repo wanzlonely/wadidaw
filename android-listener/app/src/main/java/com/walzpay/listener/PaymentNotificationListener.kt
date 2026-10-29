@@ -44,8 +44,10 @@ class PaymentNotificationListener : NotificationListenerService() {
     )
 
     private fun selectedPackages(prefs: android.content.SharedPreferences): Set<String> {
-        val raw = prefs.getStringSet("selected_packages", null)
-        return if (raw.isNullOrEmpty()) defaultPackages else raw
+        // null = belum pernah dipilih → gunakan default
+        // empty set = user sengaja kosongkan → jangan pantau apa pun
+        val raw = prefs.getStringSet("selected_packages", null) ?: return defaultPackages
+        return raw
     }
 
     override fun onListenerConnected() {
