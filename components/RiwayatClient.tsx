@@ -30,7 +30,6 @@ type Payment = {
   matchedOrderId?: string | null;
 };
 
-/** Effective status — pending past expiresAt becomes expired on client */
 function effectiveStatus(o: Order): string {
   if (o.status === "pending" && o.expiresAt) {
     if (new Date(o.expiresAt).getTime() <= Date.now()) return "expired";
@@ -39,11 +38,19 @@ function effectiveStatus(o: Order): string {
 }
 
 function statusLabel(st: string) {
-  if (st === "success") return "Sukses";
-  if (st === "pending") return "Menunggu";
-  if (st === "expired") return "Kedaluwarsa";
-  if (st === "cancelled") return "Dibatalkan";
+  if (st === "success") return "✅ Sukses";
+  if (st === "pending") return "⏳ Menunggu";
+  if (st === "expired") return "⌛ Kedaluwarsa";
+  if (st === "cancelled") return "✕ Dibatalkan";
   return st;
+}
+
+function statusEmoji(st: string) {
+  if (st === "success") return "✅";
+  if (st === "pending") return "⏳";
+  if (st === "expired") return "⌛";
+  if (st === "cancelled") return "🚫";
+  return "•";
 }
 
 export function RiwayatClient() {
@@ -110,14 +117,15 @@ export function RiwayatClient() {
   }
 
   return (
-    <>
+    <div className="riwayat-v2">
       {error ? (
         <section className="glass card-v2 anim-shake">
-          <p style={{ color: "var(--rose)" }}>{error}</p>
+          <p style={{ color: "var(--rose)", margin: 0 }}>⚠️ {error}</p>
         </section>
       ) : null}
 
-      <section className="glass card-v2">
+      <section className="glass card-v2 anim-rise">
+        <h2>🔍 Filter & ekspor</h2>
         <div className="form-row">
           <input
             className="input"
@@ -139,7 +147,7 @@ export function RiwayatClient() {
         </div>
         <div className="form-row" style={{ marginTop: 10 }}>
           <button type="button" className="btn btn-press" onClick={exportCsv}>
-            Export CSV
+            📥 Export CSV
           </button>
           <button
             type="button"
@@ -147,13 +155,13 @@ export function RiwayatClient() {
             disabled={busy}
             onClick={refresh}
           >
-            {busy ? "Memuat…" : "Refresh"}
+            {busy ? "⏳ Memuat…" : "🔄 Refresh"}
           </button>
         </div>
       </section>
 
-      <section className="glass card-v2">
-        <h2>Transaksi · {filtered.length}</h2>
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.05s" }}>
+        <h2>📋 Transaksi · {filtered.length}</h2>
         {filtered.length === 0 ? (
           <p className="empty" style={{ marginTop: 12 }}>
             Belum ada transaksi
@@ -164,13 +172,16 @@ export function RiwayatClient() {
             return (
               <div
                 key={o.id}
-                className={`list-item anim-rise status-${st}`}
+                className={`list-item riwayat-item anim-rise status-${st}`}
                 style={{
                   marginTop: 10,
                   animationDelay: `${Math.min(i, 8) * 0.04}s`,
                 }}
               >
-                <div style={{ flex: 1 }}>
+                <span className="riwayat-ico" aria-hidden>
+                  {statusEmoji(st)}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="amount sm">
                     {formatRp(o.totalAmount ?? o.amount)}
                   </div>
@@ -195,8 +206,8 @@ export function RiwayatClient() {
       </section>
 
       {payments.length > 0 ? (
-        <section className="glass card-v2">
-          <h2>Notifikasi masuk · {payments.length}</h2>
+        <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.08s" }}>
+          <h2>📲 Notifikasi masuk · {payments.length}</h2>
           {payments.slice(0, 30).map((p, i) => (
             <div
               key={p.id}
@@ -206,7 +217,10 @@ export function RiwayatClient() {
                 animationDelay: `${Math.min(i, 6) * 0.03}s`,
               }}
             >
-              <div style={{ flex: 1 }}>
+              <span className="riwayat-ico" aria-hidden>
+                💸
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="amount sm">{formatRp(p.amount)}</div>
                 <p className="muted" style={{ fontSize: 12 }}>
                   {p.merchantId}
@@ -220,6 +234,6 @@ export function RiwayatClient() {
           ))}
         </section>
       ) : null}
-    </>
+    </div>
   );
 }
