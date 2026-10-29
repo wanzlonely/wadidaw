@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { formatRp, formatTime } from "@/lib/format";
+import { apiFetch, setStoredToken } from "@/lib/api";
 
 type Payment = {
   id: string;
@@ -96,23 +97,23 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
   const refresh = useCallback(async () => {
     try {
       const [pRes, sRes, fRes, hRes, wRes] = await Promise.all([
-        fetch("/api/payments").then(async (r) => ({
+        apiFetch("/api/payments").then(async (r) => ({
           ok: r.ok,
           data: await r.json(),
         })),
-        fetch("/api/service").then(async (r) => ({
+        apiFetch("/api/service").then(async (r) => ({
           ok: r.ok,
           data: await r.json(),
         })),
-        fetch("/api/forwards").then(async (r) => ({
+        apiFetch("/api/forwards").then(async (r) => ({
           ok: r.ok,
           data: await r.json(),
         })),
-        fetch("/api/health").then(async (r) => ({
+        apiFetch("/api/health").then(async (r) => ({
           ok: r.ok,
           data: await r.json(),
         })),
-        fetch("/api/stats/week").then(async (r) => ({
+        apiFetch("/api/stats/week").then(async (r) => ({
           ok: r.ok,
           data: await r.json(),
         })),
@@ -122,7 +123,17 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       onRedis?.(rok);
 
       if (!pRes.ok) {
-        setErr(pRes.data?.error || "Gagal memuat data");
+        const msg = pRes.data?.error || "Gagal memuat data";
+        if (
+          pRes.data?.error === "Belum login" ||
+          msg.includes("login") ||
+          msg.includes("Login")
+        ) {
+          setStoredToken(null);
+          window.location.replace("/login");
+          return;
+        }
+        setErr(msg === "Belum login" ? "Sesi berakhir — silakan masuk lagi" : msg);
         return;
       }
       setErr(null);
@@ -155,7 +166,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
 
   async function toggleService() {
     setBusy(true);
-    await fetch("/api/service", {
+    await apiFetch("/api/service", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !active }),
@@ -167,7 +178,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
   async function addForward() {
     if (!url.trim()) return;
     setBusy(true);
-    await fetch("/api/forwards", {
+    await apiFetch("/api/forwards", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
@@ -178,7 +189,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
   }
 
   async function removeForward(id: string) {
-    await fetch(`/api/forwards?id=${encodeURIComponent(id)}`, {
+    await apiFetch(`/api/forwards?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
     refresh();
@@ -233,36 +244,35 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       </div>
 
       {err ? (
-        <section className="glass card-v2">
+        <section className="glass">
           <h2>Error</h2>
           <p style={{ color: "var(--rose)" }}>{err}</p>
         </section>
       ) : null}
 
-      {/* Hero card redesigned */}
-      <section className="glass card-v2 hero-card anim-rise">
-        <div className="hero-glow" aria-hidden />
+      <section className="glass">
         <div className="hero-amount">
           <p className="label">Masuk hari ini</p>
-          <p className="amount hero-rp">{formatRp(stats?.todayAmount ?? 0)}</p>
+          <p className="amount">{formatRp(stats?.todayAmount ?? 0)}</p>
           <p className="muted" style={{ marginTop: 6 }}>
             {stats?.todayCount ?? 0} transaksi · total{" "}
             {formatRp(stats?.totalAmount ?? 0)}
           </p>
         </div>
-        <div className="stats-grid hero-stats">
-          <div className="stat-box stat-box-v2">
+        <hr className="divider" />
+        <div className="stats-grid">
+          <div className="stat-box">
             <p className="label">Hari ini</p>
             <p className="amount sm">{stats?.todayCount ?? 0}</p>
           </div>
-          <div className="stat-box stat-box-v2">
+          <div className="stat-box">
             <p className="label">Pesanan pending</p>
             <p className="amount sm">{stats?.pendingOrders ?? 0}</p>
           </div>
         </div>
       </section>
 
-      <section className="glass card-v2 anim-rise">
+      <section className="glass">
         <h2>7 hari terakhir</h2>
         <div className="week-bars">
           {week.map((d) => (
@@ -280,7 +290,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         </div>
       </section>
 
-      <section className="glass card-v2 row anim-rise">
+      <section className="glass row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Layanan aktif</h2>
           <p>{active ? "Menerima webhook" : "Dijeda"}</p>
@@ -296,7 +306,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         </label>
       </section>
 
-      <section className="glass card-v2 anim-rise">
+      <section className="glass">
         <h2>Pembayaran terakhir</h2>
         {stats?.latest ? (
           <div>
@@ -314,7 +324,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         )}
       </section>
 
-      <section className="glass card-v2 anim-rise">
+      <section className="glass">
         <h2>Webhook HP</h2>
         <code className="code">{hookPath}</code>
         <button type="button" className="btn btn-block btn-press" onClick={copyHook}>
@@ -322,7 +332,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         </button>
       </section>
 
-      <section className="glass card-v2 anim-rise">
+      <section className="glass">
         <h2>Forward URL</h2>
         <div className="form-row" style={{ marginTop: 8 }}>
           <input
@@ -358,7 +368,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         ))}
       </section>
 
-      <section className="glass card-v2 row anim-rise">
+      <section className="glass row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Suara alert</h2>
           <p>Beep saat uang masuk</p>
@@ -369,7 +379,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         </label>
       </section>
 
-      <section className="glass card-v2 row anim-rise">
+      <section className="glass row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Notifikasi browser</h2>
           <p>{pushOn ? "Aktif" : "Minta izin OS / browser"}</p>
