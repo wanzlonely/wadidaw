@@ -1,4 +1,5 @@
 import { getRedis, KEYS } from "./redis";
+import { K } from "./tenant";
 
 export type AppSettings = {
   displayName: string;
@@ -6,7 +7,6 @@ export type AppSettings = {
   webhookSecret: string;
   feeType: "none" | "fixed" | "percent" | "random";
   feeValue: number;
-  /** Rentang admin acak (untuk anti-collision) */
   feeMin: number;
   feeMax: number;
   defaultExpiryMinutes: number;
@@ -43,10 +43,11 @@ export function defaultSettings(): AppSettings {
 
 export async function getSettings(): Promise<AppSettings> {
   const redis = getRedis();
-  const raw = await redis.get(KEYS.settings);
+  const key = K().settings;
+  const raw = await redis.get(key);
   if (!raw) {
     const d = defaultSettings();
-    await redis.set(KEYS.settings, JSON.stringify(d));
+    await redis.set(key, JSON.stringify(d));
     return d;
   }
   const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -63,7 +64,7 @@ export async function updateSettings(
     updatedAt: new Date().toISOString(),
   };
   const redis = getRedis();
-  await redis.set(KEYS.settings, JSON.stringify(next));
+  await redis.set(K().settings, JSON.stringify(next));
   return next;
 }
 
@@ -85,3 +86,6 @@ export async function verifyPassword(plain: string): Promise<boolean> {
   const h = await hashPassword(plain);
   return h === s.passwordHash;
 }
+
+// keep KEYS import used for typecheck silence
+void KEYS;
