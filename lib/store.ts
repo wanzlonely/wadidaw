@@ -47,6 +47,12 @@ const MAX_ORDERS = 500;
 const MAX_LOGS = 500;
 const DEDUP_TTL_SEC = 120;
 
+/** Upstash may return string or already-parsed object from lrange. */
+function parseRow<T>(x: unknown): T {
+  if (typeof x === "string") return JSON.parse(x) as T;
+  return x as T;
+}
+
 async function nextId(prefix: string) {
   const redis = getRedis();
   const n = await redis.incr(KEYS.seq);
@@ -74,8 +80,8 @@ export async function addLog(
 
 export async function listLogs(): Promise<DebugLog[]> {
   const redis = getRedis();
-  const raw = await redis.lrange<string>(KEYS.logs, 0, 199);
-  return raw.map((x) => (typeof x === "string" ? JSON.parse(x) : x));
+  const raw = await redis.lrange(KEYS.logs, 0, 199);
+  return raw.map((x) => parseRow<DebugLog>(x));
 }
 
 export async function clearLogs() {
@@ -85,7 +91,6 @@ export async function clearLogs() {
 
 // ─── Dedup ──────────────────────────────────────────────
 
-/** Returns true if this amount was already seen recently (duplicate). */
 export async function isDuplicatePayment(
   amount: number,
   packageName?: string | null
@@ -98,17 +103,12 @@ export async function isDuplicatePayment(
   return false;
 }
 
-// ─── Orders (pending → success matching) ────────────────
+// ─── Orders ─────────────────────────────────────────────
 
 async function loadOrders(): Promise<Order[]> {
   const redis = getRedis();
-  const raw = await redis.lrange<string>(KEYS.orders, 0, MAX_ORDERS - 1);
-  return raw.map((x) => (typeof x === "string" ? JSON.parse(x) : x));
-}
-
-async function saveOrderAt(index: number, order: Order) {
-  const redis = getRedis();
-  await redis.lset(KEYS.orders, index, JSON.stringify(order));
+  const raw = await redis.lrange(KEYS.orders, 0, MAX_ORDERS - 1);
+  return raw.map((x) => parseRow<Order>(x));
 }
 
 export async function createOrder(input: {
@@ -152,10 +152,9 @@ export async function listOrders(status?: Order["status"]): Promise<Order[]> {
 
 export async function cancelOrder(id: string): Promise<Order | null> {
   const redis = getRedis();
-  const raw = await redis.lrange<string>(KEYS.orders, 0, MAX_ORDERS - 1);
+  const raw = await redis.lrange(KEYS.orders, 0, MAX_ORDERS - 1);
   for (let i = 0; i < raw.length; i++) {
-    const item: Order =
-      typeof raw[i] === "string" ? JSON.parse(raw[i] as string) : (raw[i] as Order);
+    const item = parseRow<Order>(raw[i]);
     if (item.id === id && item.status === "pending") {
       item.status = "cancelled";
       await redis.lset(KEYS.orders, i, JSON.stringify(item));
@@ -166,19 +165,16 @@ export async function cancelOrder(id: string): Promise<Order | null> {
   return null;
 }
 
-/** Match oldest pending order with exact amount. Marks it success. */
 export async function matchPendingOrder(
   amount: number,
   paymentId: string
 ): Promise<Order | null> {
   const redis = getRedis();
-  const raw = await redis.lrange<string>(KEYS.orders, 0, MAX_ORDERS - 1);
+  const raw = await redis.lrange(KEYS.orders, 0, MAX_ORDERS - 1);
   const now = Date.now();
 
-  // Prefer oldest pending (scan from end of list since we LPUSH)
   for (let i = raw.length - 1; i >= 0; i--) {
-    const item: Order =
-      typeof raw[i] === "string" ? JSON.parse(raw[i] as string) : (raw[i] as Order);
+    const item = parseRow<Order>(raw[i]);
 
     if (item.status !== "pending") continue;
     if (item.amount !== amount) continue;
@@ -229,10 +225,9 @@ export async function updatePaymentForwardStatus(
   status: PaymentEvent["forwardStatus"]
 ) {
   const redis = getRedis();
-  const raw = await redis.lrange<string>(KEYS.payments, 0, 49);
+  const raw = await redis.lrange(KEYS.payments, 0, 49);
   for (let i = 0; i < raw.length; i++) {
-    const item =
-      typeof raw[i] === "string" ? JSON.parse(raw[i] as string) : raw[i];
+    const item = parseRow<PaymentEvent>(raw[i]);
     if (item.id === id) {
       item.forwardStatus = status;
       await redis.lset(KEYS.payments, i, JSON.stringify(item));
@@ -246,10 +241,9 @@ export async function attachMatchedOrder(
   orderId: string
 ) {
   const redis = getRedis();
-  const raw = await redis.lrange<string>(KEYS.payments, 0, 49);
+  const raw = await redis.lrange(KEYS.payments, 0, 49);
   for (let i = 0; i < raw.length; i++) {
-    const item =
-      typeof raw[i] === "string" ? JSON.parse(raw[i] as string) : raw[i];
+    const item = parseRow<PaymentEvent>(raw[i]);
     if (item.id === paymentId) {
       item.matchedOrderId = orderId;
       await redis.lset(KEYS.payments, i, JSON.stringify(item));
@@ -260,8 +254,8 @@ export async function attachMatchedOrder(
 
 export async function listPayments(): Promise<PaymentEvent[]> {
   const redis = getRedis();
-  const raw = await redis.lrange<string>(KEYS.payments, 0, 499);
-  return raw.map((x) => (typeof x === "string" ? JSON.parse(x) : x));
+  const raw = await redis.lrange(KEYS.payments, 0, 499);
+  return raw.map((x) => parseRow<PaymentEvent>(x));
 }
 
 export async function clearPayments() {
@@ -298,10 +292,10 @@ export async function getStats() {
 
 export async function listForwards(): Promise<ForwardTarget[]> {
   const redis = getRedis();
-  const raw = await redis.get<string | ForwardTarget[]>(KEYS.forwards);
+  const raw = await redis.get(KEYS.forwards);
   if (!raw) return [];
-  if (typeof raw === "string") return JSON.parse(raw);
-  return raw;
+  if (typeof raw === "string") return JSON.parse(raw) as ForwardTarget[];
+  return raw as ForwardTarget[];
 }
 
 async function saveForwards(list: ForwardTarget[]) {
@@ -341,10 +335,10 @@ export async function setForwardEnabled(id: string, enabled: boolean) {
 
 export async function getServiceActive(): Promise<boolean> {
   const redis = getRedis();
-  const v = await redis.get<string | boolean>(KEYS.service);
+  const v = await redis.get(KEYS.service);
   if (v === null || v === undefined) return true;
   if (typeof v === "boolean") return v;
-  return v !== "0" && v !== "false";
+  return String(v) !== "0" && String(v) !== "false";
 }
 
 export async function setServiceActive(v: boolean) {
