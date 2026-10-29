@@ -5,6 +5,7 @@ import {
   createSession,
   destroySession,
   getSessionFromSid,
+  resolveSession,
   cookieOpts,
   COOKIE_NAME,
   issueOtp,
@@ -40,8 +41,7 @@ export async function GET(req: NextRequest) {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
   }
-  const sid = getSid(req);
-  const session = await getSessionFromSid(sid);
+  const session = await resolveSession(req);
   if (!session) {
     return NextResponse.json({ authenticated: false });
   }
@@ -144,6 +144,7 @@ export async function POST(req: NextRequest) {
     const sid = await createSession(user);
     const res = NextResponse.json({
       ok: true,
+      token: sid,
       user: { id: user.id, email: user.email, displayName: user.displayName },
     });
     setSessionCookie(res, sid);
@@ -184,6 +185,7 @@ export async function POST(req: NextRequest) {
     const sid = await createSession(user);
     const res = NextResponse.json({
       ok: true,
+      token: sid,
       user: { id: user.id, email: user.email, displayName: user.displayName },
     });
     setSessionCookie(res, sid);
@@ -199,8 +201,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "update_profile") {
-    const sid = getSid(req);
-    const session = await getSessionFromSid(sid);
+    const session = await resolveSession(req);
     if (!session) {
       return NextResponse.json({ error: "Belum login" }, { status: 401 });
     }
