@@ -2,7 +2,6 @@
    WALZPAY — Liquid Glass refinements & layout fixes
    ============================================================ */
 
-/* Force 4-tab bottom nav — Setel only top-right */
 .nav-bottom {
   grid-template-columns: repeat(4, 1fr) !important;
 }
@@ -15,7 +14,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 22px !important;
+  margin-bottom: 18px !important;
 }
 
 .brand {
@@ -87,7 +86,7 @@
   transform: scale(0.94);
 }
 
-/* ---------- Session loading (aesthetic) ---------- */
+/* ---------- Session loading ---------- */
 .shell-loading {
   display: flex;
   align-items: center;
@@ -178,14 +177,101 @@
   }
 }
 
-/* Dashboard hero — push ~1.5cm down from topbar */
+/* ---------- Dashboard hero (balanced, complete) ---------- */
 .dash-hero {
-  margin-top: 56px !important;
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  padding: 22px 16px 18px !important;
+  margin-top: 0 !important;
 }
 
-.dash-hero .amount {
-  letter-spacing: -0.02em;
+.dash-hero .hero-glow {
+  position: absolute;
+  top: -45%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 160%;
+  height: 70%;
+  background: radial-gradient(ellipse, rgba(110, 182, 255, 0.22) 0%, transparent 65%);
+  pointer-events: none;
 }
+
+.hero-kicker {
+  position: relative;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 8px;
+}
+
+.hero-rp {
+  position: relative;
+  font-size: 2.05rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 0;
+  background: linear-gradient(135deg, #ffffff 0%, #cfe4ff 50%, #a8d4ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 16px rgba(110, 182, 255, 0.35));
+}
+
+.hero-sub {
+  position: relative;
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+  line-height: 1.4;
+}
+
+.hero-stats-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.hero-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 12px 12px 11px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  text-align: left;
+}
+
+.hero-stat-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.hero-stat-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.hero-stat-hint {
+  font-size: 0.7rem;
+  color: var(--ink-dim);
+  line-height: 1.3;
+}
+
 .dash-alert {
   padding: 12px 16px !important;
 }
@@ -265,7 +351,7 @@
   }
 }
 
-/* ---------- Profile detail rows ---------- */
+/* ---------- Profile ---------- */
 .detail-rows {
   display: flex;
   flex-direction: column;
@@ -429,8 +515,7 @@
   -webkit-backdrop-filter: blur(32px) saturate(1.85);
   box-shadow:
     0 16px 40px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 0 0 1px rgba(255, 255, 255, 0.04);
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
   animation: bubble-spring 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) both;
 }
 
@@ -456,7 +541,6 @@
   font-weight: 700;
   color: #0a1220;
   background: linear-gradient(145deg, #cfe8ff, #7eb8ff);
-  box-shadow: 0 4px 12px rgba(110, 182, 255, 0.35);
 }
 .tone-ok .bubble-icon {
   background: linear-gradient(145deg, #c8ffe8, #7ee0c8);
@@ -465,9 +549,6 @@
   background: linear-gradient(145deg, #ffd0d8, #ff8fa3);
 }
 
-.bubble-body {
-  min-width: 0;
-}
 .bubble-body strong {
   display: block;
   font-size: 0.9rem;
@@ -496,8 +577,7 @@
   }
 }
 
-/* ---------- Auth / Login ---------- */
-
+/* ---------- Auth ---------- */
 .auth-shell {
   position: relative;
   z-index: 1;
@@ -593,11 +673,6 @@
   color: var(--ink);
 }
 
-.auth-label .input::placeholder {
-  color: rgba(200, 210, 230, 0.4);
-  font-weight: 400;
-}
-
 .auth-label .input:focus {
   border-color: rgba(174, 212, 255, 0.55);
   background: rgba(255, 255, 255, 0.12);
@@ -625,13 +700,11 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.22s, color 0.22s, box-shadow 0.22s, transform 0.15s;
 }
 
 .auth-tabs button.active {
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
   color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 .captcha-math {
