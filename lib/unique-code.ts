@@ -1,42 +1,43 @@
 /**
- * Unique amount code for dynamic QRIS-style matching.
- * Base amount + 3-digit code so concurrent pending orders never share the same total.
- * Example: base 50000 → total 50123 (code 123)
+ * Unique total via small random admin fee (anti-collision).
+ * totalAmount = baseAmount + adminFee
+ * adminFee picked randomly in [minFee, maxFee] ensuring total not used by other pending orders.
  */
 
-const usedCodes = new Set<number>();
+/** Allocate random admin fee in [minFee, maxFee] such that base+fee is not in takenTotals. */
+export function allocateAdminFee(
+  baseAmount: number,
+  takenTotals: Set<number>,
+  minFee = 1,
+  maxFee = 99
+): number {
+  const base = Math.round(baseAmount);
+  const lo = Math.max(0, Math.round(minFee));
+  const hi = Math.max(lo, Math.round(maxFee));
+  const span = hi - lo + 1;
 
-/** Allocate a 3-digit code (100–999) not currently in `taken`. */
-export function allocateUniqueCode(taken: Set<number>): number {
-  // Prefer random to avoid predictable sequences
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const code = 100 + Math.floor(Math.random() * 900);
-    if (!taken.has(code)) {
-      taken.add(code);
-      return code;
+  for (let attempt = 0; attempt < Math.min(span * 3, 400); attempt++) {
+    const fee = lo + Math.floor(Math.random() * span);
+    const total = base + fee;
+    if (!takenTotals.has(total)) {
+      takenTotals.add(total);
+      return fee;
     }
   }
-  // Fallback sequential
-  for (let code = 100; code <= 999; code++) {
-    if (!taken.has(code)) {
-      taken.add(code);
-      return code;
+
+  for (let fee = lo; fee <= hi; fee++) {
+    const total = base + fee;
+    if (!takenTotals.has(total)) {
+      takenTotals.add(total);
+      return fee;
     }
   }
-  throw new Error("Semua kode unik 100–999 sedang dipakai. Tunggu order expired.");
+
+  throw new Error(
+    `Semua biaya admin ${lo}–${hi} sedang dipakai untuk nominal ini. Tunggu order expired atau naikkan rentang admin di Profil.`
+  );
 }
 
-export function buildTotalAmount(baseAmount: number, uniqueCode: number): number {
-  // Append code as last 3 digits without breaking large amounts:
-  // total = base * 1000 + code would explode. Instead: base + code (Mutasiku-style).
-  return Math.round(baseAmount) + uniqueCode;
-}
-
-export function extractBaseAndCode(
-  totalAmount: number,
-  baseAmount: number
-): { base: number; code: number } | null {
-  const code = totalAmount - Math.round(baseAmount);
-  if (code >= 100 && code <= 999) return { base: Math.round(baseAmount), code };
-  return null;
+export function buildTotalAmount(baseAmount: number, adminFee: number): number {
+  return Math.round(baseAmount) + Math.max(0, Math.round(adminFee));
 }
