@@ -10,23 +10,26 @@ import { hasRedisEnv } from "@/lib/redis";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function publicSettings(s: Awaited<ReturnType<typeof getSettings>>) {
+  return {
+    displayName: s.displayName,
+    apiKey: s.apiKey,
+    webhookSecret: s.webhookSecret,
+    feeType: s.feeType,
+    feeValue: s.feeValue,
+    defaultExpiryMinutes: s.defaultExpiryMinutes,
+    enabledMerchants: s.enabledMerchants ?? [],
+    hasPassword: Boolean(s.passwordHash),
+    updatedAt: s.updatedAt,
+  };
+}
+
 export async function GET() {
   if (!hasRedisEnv()) {
     return NextResponse.json({ error: "Redis not configured" }, { status: 503 });
   }
   const s = await getSettings();
-  return NextResponse.json({
-    settings: {
-      displayName: s.displayName,
-      apiKey: s.apiKey,
-      webhookSecret: s.webhookSecret,
-      feeType: s.feeType,
-      feeValue: s.feeValue,
-      defaultExpiryMinutes: s.defaultExpiryMinutes,
-      hasPassword: Boolean(s.passwordHash),
-      updatedAt: s.updatedAt,
-    },
-  });
+  return NextResponse.json({ settings: publicSettings(s) });
 }
 
 export async function POST(req: NextRequest) {
@@ -73,19 +76,10 @@ export async function POST(req: NextRequest) {
   if (body.feeValue != null) patch.feeValue = Number(body.feeValue);
   if (body.defaultExpiryMinutes != null)
     patch.defaultExpiryMinutes = Number(body.defaultExpiryMinutes);
+  if (Array.isArray(body.enabledMerchants)) {
+    patch.enabledMerchants = body.enabledMerchants.map(String);
+  }
 
   const s = await updateSettings(patch as Parameters<typeof updateSettings>[0]);
-  return NextResponse.json({
-    ok: true,
-    settings: {
-      displayName: s.displayName,
-      apiKey: s.apiKey,
-      webhookSecret: s.webhookSecret,
-      feeType: s.feeType,
-      feeValue: s.feeValue,
-      defaultExpiryMinutes: s.defaultExpiryMinutes,
-      hasPassword: Boolean(s.passwordHash),
-      updatedAt: s.updatedAt,
-    },
-  });
+  return NextResponse.json({ ok: true, settings: publicSettings(s) });
 }

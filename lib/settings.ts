@@ -7,12 +7,14 @@ export type AppSettings = {
   feeType: "none" | "fixed" | "percent";
   feeValue: number;
   defaultExpiryMinutes: number;
+  enabledMerchants: string[];
   passwordHash: string | null;
   updatedAt: string;
 };
 
 function randomKey(len = 32): string {
-  const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const alphabet =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let s = "";
   for (let i = 0; i < len; i++) {
     s += alphabet[Math.floor(Math.random() * alphabet.length)];
@@ -28,6 +30,7 @@ export function defaultSettings(): AppSettings {
     feeType: "none",
     feeValue: 0,
     defaultExpiryMinutes: 30,
+    enabledMerchants: ["dana", "gopay", "whatsapp"],
     passwordHash: null,
     updatedAt: new Date().toISOString(),
   };
