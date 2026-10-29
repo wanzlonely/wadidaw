@@ -3,7 +3,7 @@ import { AndroidPermissions } from "@/components/AndroidPermissions";
 
 export default function IzinPage() {
   return (
-    <Shell active="/izin" subtitle="Permission · monitoring">
+    <Shell active="/izin" subtitle="Izin · monitoring">
       <AndroidPermissions />
     </Shell>
   );
