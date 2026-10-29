@@ -1,4 +1,4 @@
-/* Beranda · Riwayat · Setel */
+/* Beranda · Riwayat · Setel · Pesanan */
 
 .home-v2 .home-hero {
   text-align: center;
@@ -56,4 +56,35 @@
 .qris-info-row strong {
   color: var(--ink);
   text-align: right;
+}
+
+.sec-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.sec-title svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+  color: var(--aqua);
+}
+
+.izin-ico {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(110, 182, 255, 0.12);
+  border: 1px solid rgba(110, 182, 255, 0.2);
+  color: var(--aqua);
+  flex-shrink: 0;
+}
+
+.izin-ico svg {
+  width: 18px;
+  height: 18px;
 }
