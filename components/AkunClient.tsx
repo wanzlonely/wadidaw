@@ -27,7 +27,6 @@ export function AkunClient() {
 
   const load = useCallback(async () => {
     try {
-      // Prefer GET (session cookie / token via apiFetch)
       const getRes = await apiFetch("/api/auth");
       const getData = await getRes.json();
       if (getRes.ok && getData.authenticated && getData.user) {
@@ -44,7 +43,6 @@ export function AkunClient() {
         return;
       }
 
-      // Fallback POST me
       const res = await apiFetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -230,9 +228,6 @@ export function AkunClient() {
 
       <section className="glass card-v2 anim-rise">
         <h2>Ubah password</h2>
-        <p className="muted" style={{ marginBottom: 10 }}>
-          Password akun login Anda (bukan password pengaturan sistem).
-        </p>
         <label className="field-label">Password lama</label>
         <input
           className="input field-input"
