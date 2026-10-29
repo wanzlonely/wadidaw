@@ -190,115 +190,120 @@ export function AkunClient() {
     );
   }
 
+  const initial = (u?.displayName || "W").charAt(0).toUpperCase();
+
   return (
-    <>
+    <div className="profil-v2">
       {err ? (
         <section className="glass card-v2 anim-shake">
-          <p style={{ color: "var(--rose)" }}>{err}</p>
+          <p style={{ color: "var(--rose)", margin: 0 }}>⚠️ {err}</p>
         </section>
       ) : null}
 
-      <section className="glass card-v2 account-card anim-rise">
-        <div className="account-avatar anim-float">
-          {(u?.displayName || "W").charAt(0).toUpperCase()}
+      <section className="glass card-v2 profil-hero anim-rise">
+        <div className="profil-avatar-wrap">
+          <div className="profil-avatar">{initial}</div>
+          <span className="profil-avatar-glow" aria-hidden />
         </div>
-        <h2 className="account-name">{u?.displayName || "Merchant"}</h2>
-        <p className="muted" style={{ textAlign: "center" }}>
-          {u?.email || "—"}
-        </p>
-        <div className="account-badge">Password aktif</div>
+        <h2 className="profil-name">{u?.displayName || "Merchant"}</h2>
+        <p className="profil-email">{u?.email || "—"}</p>
+        <div className="profil-pills">
+          <span className="profil-pill ok">🔐 Password aktif</span>
+          <span className={`profil-pill${u?.a2fEnabled ? " ok" : ""}`}>
+            {u?.a2fEnabled ? "🛡️ A2F aktif" : "🛡️ A2F off"}
+          </span>
+        </div>
         {u?.createdAt ? (
-          <p
-            className="muted"
-            style={{ textAlign: "center", fontSize: 11, marginTop: 8 }}
-          >
-            Bergabung {new Date(u.createdAt).toLocaleDateString("id-ID")}
+          <p className="profil-joined">
+            📅 Bergabung {new Date(u.createdAt).toLocaleDateString("id-ID")}
           </p>
         ) : null}
       </section>
 
-      <section className="glass card-v2 anim-rise">
-        <h2>Detail akun</h2>
-        <div className="detail-rows">
-          <div className="detail-row">
-            <span className="muted">ID</span>
-            <strong className="detail-value">{u?.id || "—"}</strong>
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.04s" }}>
+        <h2>📋 Detail akun</h2>
+        <div className="profil-details">
+          <div className="profil-detail">
+            <span className="profil-detail-k">ID</span>
+            <span className="profil-detail-v">{u?.id || "—"}</span>
           </div>
-          <div className="detail-row">
-            <span className="muted">Email</span>
-            <strong className="detail-value">{u?.email || "—"}</strong>
+          <div className="profil-detail">
+            <span className="profil-detail-k">Email</span>
+            <span className="profil-detail-v">{u?.email || "—"}</span>
           </div>
-          <div className="detail-row">
-            <span className="muted">Nama</span>
-            <strong className="detail-value">{u?.displayName || "—"}</strong>
+          <div className="profil-detail">
+            <span className="profil-detail-k">Nama</span>
+            <span className="profil-detail-v">{u?.displayName || "—"}</span>
           </div>
-          <div className="detail-row">
-            <span className="muted">A2F</span>
-            <strong
-              className="detail-value"
-              style={{
-                color: u?.a2fEnabled ? "var(--mint)" : "var(--ink-dim)",
-              }}
+          <div className="profil-detail">
+            <span className="profil-detail-k">A2F</span>
+            <span
+              className="profil-detail-v"
+              style={{ color: u?.a2fEnabled ? "var(--mint)" : undefined }}
             >
               {u?.a2fEnabled ? "Aktif" : "Nonaktif"}
-            </strong>
+            </span>
           </div>
         </div>
       </section>
 
-      <section className="glass card-v2 anim-rise">
-        <h2>Ubah password</h2>
-        <form onSubmit={setPw}>
-          <label className="field-label">Password lama</label>
-          <input
-            className="input field-input"
-            type={showPw ? "text" : "password"}
-            value={oldPw}
-            onChange={(e) => setOldPw(e.target.value)}
-            placeholder="Password saat ini"
-            autoComplete="current-password"
-          />
-          <label className="field-label">Password baru</label>
-          <input
-            className="input field-input"
-            type={showPw ? "text" : "password"}
-            placeholder="Minimal 6 karakter"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-          />
-          <label className="field-label">Konfirmasi password baru</label>
-          <input
-            className="input field-input"
-            type={showPw ? "text" : "password"}
-            placeholder="Ulangi password baru"
-            value={password2}
-            onChange={(e) => setPassword2(e.target.value)}
-            autoComplete="new-password"
-          />
-          <label className="check-row" style={{ marginTop: 10 }}>
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.08s" }}>
+        <h2>🔑 Ubah password</h2>
+        <form onSubmit={setPw} className="profil-form">
+          <label className="auth-v2-field">
+            <span className="auth-v2-label">Password lama</span>
+            <input
+              className="input"
+              type={showPw ? "text" : "password"}
+              value={oldPw}
+              onChange={(e) => setOldPw(e.target.value)}
+              placeholder="Password saat ini"
+              autoComplete="current-password"
+            />
+          </label>
+          <label className="auth-v2-field">
+            <span className="auth-v2-label">Password baru</span>
+            <input
+              className="input"
+              type={showPw ? "text" : "password"}
+              placeholder="Minimal 6 karakter"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+          <label className="auth-v2-field">
+            <span className="auth-v2-label">Konfirmasi password baru</span>
+            <input
+              className="input"
+              type={showPw ? "text" : "password"}
+              placeholder="Ulangi password baru"
+              value={password2}
+              onChange={(e) => setPassword2(e.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+          <label className="profil-show-pw">
             <input
               type="checkbox"
               checked={showPw}
               onChange={(e) => setShowPw(e.target.checked)}
             />
-            <span className="muted" style={{ fontSize: 13 }}>
-              Tampilkan password
-            </span>
+            <span>{showPw ? "🙉" : "🙈"} Tampilkan password</span>
           </label>
           <button
             type="submit"
-            className="btn btn-primary btn-block btn-press"
-            style={{ marginTop: 12 }}
+            className="btn btn-block btn-press"
+            style={{ marginTop: 4 }}
             disabled={busy === "pw"}
           >
-            {busy === "pw" ? "Menyimpan…" : "Simpan password"}
+            {busy === "pw" ? "⏳ Menyimpan…" : "Simpan password"}
           </button>
         </form>
       </section>
 
-      <section className="glass card-v2 anim-rise">
-        <h2>Keamanan A2F</h2>
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.12s" }}>
+        <h2>🛡️ Keamanan A2F</h2>
         <p className="muted" style={{ marginBottom: 12 }}>
           Autentikasi 2 faktor menambahkan kode OTP saat login.
         </p>
@@ -309,23 +314,23 @@ export function AkunClient() {
           onClick={toggleA2f}
         >
           {busy === "a2f"
-            ? "Memproses…"
+            ? "⏳ Memproses…"
             : u?.a2fEnabled
               ? "Matikan A2F"
               : "Aktifkan A2F"}
         </button>
       </section>
 
-      <section className="glass card-v2 anim-rise">
+      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.16s" }}>
         <button
           type="button"
-          className="btn btn-block btn-ghost btn-press"
+          className="btn btn-block btn-ghost btn-press profil-logout"
           disabled={busy === "logout"}
           onClick={logout}
         >
-          {busy === "logout" ? "Keluar…" : "Keluar dari akun"}
+          {busy === "logout" ? "Keluar…" : "🚪 Keluar dari akun"}
         </button>
       </section>
-    </>
+    </div>
   );
 }
