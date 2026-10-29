@@ -26,14 +26,12 @@ async function resolveAuth(req: NextRequest): Promise<{
     req.headers.get("x-walzpay-key") ||
     "";
 
-  // Preferred: per-merchant API key → tenant scope
   if (apiKey) {
     const uid = await findUserIdByApiKey(apiKey.trim());
     if (uid) return { ok: true, userId: uid };
     return { ok: false, userId: null, reason: "API key tidak dikenal" };
   }
 
-  // Fallback: global WEBHOOK_SECRET (legacy / single-tenant)
   const secret = process.env.WEBHOOK_SECRET;
   if (secret) {
     const h =
@@ -43,7 +41,6 @@ async function resolveAuth(req: NextRequest): Promise<{
     return { ok: false, userId: null, reason: "Secret salah / API key kosong" };
   }
 
-  // No secret configured and no API key → open (dev only)
   return { ok: true, userId: null };
 }
 
@@ -73,7 +70,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Scope store ops to merchant when API key resolved a user
   if (auth.userId) {
     setTenant(auth.userId);
   }
@@ -128,8 +124,8 @@ export async function POST(req: NextRequest) {
       await attachMatchedOrder(row.id, matched.id);
     }
 
-    // Forward to Telegram / WhatsApp bots / custom URLs (dashboard Forward URL)
-    await forwardPayment(row);
+    // Forward to bot/website with order.paid when matched
+    await forwardPayment(row, matched);
 
     return NextResponse.json({
       ok: true,
@@ -158,7 +154,8 @@ export async function GET() {
       "parse",
       "dedup",
       "match pending order → success",
-      "forward Telegram/WA/custom",
+      "callbackUrl per order",
+      "forward Telegram/WA/custom with order.paid",
       "multi-tenant via X-Api-Key",
     ],
     requiredHeaders: {
