@@ -27,10 +27,16 @@ class PaymentNotificationListener : NotificationListenerService() {
         "id.dana",
         "id.dana.kasir",
         "com.gojek.gopaymerchant",
-        "id.co.bri.merchant",
-        "com.interactive.qrisid",
+        "com.gojek.app",
         "ovo.id",
+        "com.ovo.id",
         "com.shopee.id",
+        "com.telkom.mwallet",
+        "id.co.bri.merchant",
+        "id.co.bri.brimo",
+        "com.bca",
+        "id.bmri.livin",
+        "com.interactive.qrisid",
         "com.whatsapp",
         "com.whatsapp.w4b"
     )
@@ -55,6 +61,12 @@ class PaymentNotificationListener : NotificationListenerService() {
             return
         }
 
+        val apiKey = prefs.getString("api_key", null)?.trim()
+        if (apiKey.isNullOrEmpty()) {
+            AppLog.append(this, "Skip: API Key kosong — isi dari Setel website")
+            return
+        }
+
         val notification = sbn.notification ?: return
         val extras = notification.extras ?: return
 
@@ -73,7 +85,8 @@ class PaymentNotificationListener : NotificationListenerService() {
         val lower = combined.lowercase()
         val ignoreKeywords = listOf(
             "gagal", "batal", "refund", "promo", "voucher",
-            "otp", "kode verifikasi", "tarik tunai", "penarikan"
+            "otp", "kode verifikasi", "tarik tunai", "penarikan",
+            "missed voice", "missed video"
         )
         if (ignoreKeywords.any { lower.contains(it) }) {
             AppLog.append(this, "Skip ignored · ${combined.take(40)}")
@@ -84,16 +97,23 @@ class PaymentNotificationListener : NotificationListenerService() {
         val merchantId = when {
             packageName.contains("dana") -> "dana"
             packageName.contains("gopay") || packageName.contains("gojek") -> "gopay"
+            packageName.contains("ovo") -> "ovo"
+            packageName.contains("shopee") -> "shopee"
+            packageName.contains("mwallet") || packageName.contains("linkaja") -> "linkaja"
             packageName.contains("bri") -> "bri"
+            packageName.contains("bca") -> "bca"
+            packageName.contains("bmri") || packageName.contains("mandiri") -> "mandiri"
             packageName.contains("interactive") -> "interactive"
+            packageName.contains("whatsapp") -> "whatsapp"
             else -> "unknown"
         }
 
-        AppLog.append(this, "Detect Rp$amount · $merchantId")
+        AppLog.append(this, "Detect Rp$amount · $merchantId · $packageName")
 
         CoroutineScope(Dispatchers.IO).launch {
             sendToWebhook(
                 url = webhookUrl,
+                apiKey = apiKey,
                 secret = secret,
                 packageName = packageName,
                 title = title,
@@ -125,6 +145,7 @@ class PaymentNotificationListener : NotificationListenerService() {
 
     private fun sendToWebhook(
         url: String,
+        apiKey: String,
         secret: String?,
         packageName: String,
         title: String,
@@ -142,17 +163,26 @@ class PaymentNotificationListener : NotificationListenerService() {
                 put("rawTitle", title)
                 put("amount", amount)
                 put("merchantId", merchantId)
+                put("paymentSource", merchantId.uppercase())
             }
 
             val body = json.toString().toRequestBody("application/json".toMediaType())
             val reqBuilder = Request.Builder().url(url).post(body)
+            // Multi-tenant: server setTenant via API key
+            reqBuilder.header("X-Api-Key", apiKey)
+            reqBuilder.header("X-Walzpay-Key", apiKey)
             if (!secret.isNullOrBlank()) {
                 reqBuilder.header("X-Webhook-Secret", secret)
+                reqBuilder.header("X-Walzpay-Secret", secret)
             }
             val res = client.newCall(reqBuilder.build()).execute()
             val code = res.code
+            val respBody = res.body?.string()?.take(120) ?: ""
             res.close()
-            AppLog.append(this@PaymentNotificationListener, "Webhook HTTP $code · Rp$amount")
+            AppLog.append(
+                this@PaymentNotificationListener,
+                "Webhook HTTP $code · Rp$amount · $respBody"
+            )
         } catch (e: Exception) {
             Log.e("WalzPay", "webhook error", e)
             AppLog.append(this@PaymentNotificationListener, "Webhook error: ${e.message}")
