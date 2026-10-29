@@ -38,7 +38,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
-        const val SITE_CACHE_BUST = "2.8.1"
+        const val SITE_CACHE_BUST = "3.0.0"
     }
 
     private val knownPackages = linkedMapOf(
@@ -84,7 +84,7 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         }
-        settings.userAgentString = settings.userAgentString + " WalzpayApp/2.8.1"
+        settings.userAgentString = settings.userAgentString + " WalzpayApp/3.0.0"
 
         // Always wipe WebView cache so UI from Vercel is never stale
         webView.clearCache(true)
