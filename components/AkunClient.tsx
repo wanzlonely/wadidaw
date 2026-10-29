@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { apiFetch } from "@/lib/client-api";
+import { apiFetch, setStoredToken } from "@/lib/api";
 import { pushBubble } from "@/components/BubbleToasts";
 
 type UserInfo = {
@@ -14,22 +14,41 @@ type UserInfo = {
   updatedAt?: string;
 };
 
+type BusyKey = "pw" | "a2f" | "logout" | null;
+
 export function AkunClient() {
   const [u, setU] = useState<UserInfo | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<BusyKey>(null);
   const [oldPw, setOldPw] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
   const [showPw, setShowPw] = useState(false);
 
   const load = useCallback(async () => {
-    const token = localStorage.getItem("walzpay_token") || "";
     try {
-      const res = await fetch("/api/auth", {
+      // Prefer GET (session cookie / token via apiFetch)
+      const getRes = await apiFetch("/api/auth");
+      const getData = await getRes.json();
+      if (getRes.ok && getData.authenticated && getData.user) {
+        setErr(null);
+        setU({
+          id: getData.user.id,
+          email: getData.user.email,
+          displayName: getData.user.displayName,
+          a2fEnabled: Boolean(getData.user.a2fEnabled),
+          hasPassword: Boolean(getData.user.hasPassword),
+          createdAt: getData.user.createdAt || "",
+          updatedAt: getData.user.updatedAt,
+        });
+        return;
+      }
+
+      // Fallback POST me
+      const res = await apiFetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "me", token }),
+        body: JSON.stringify({ action: "me" }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -60,57 +79,87 @@ export function AkunClient() {
       setErr("Masukkan password lama");
       return;
     }
-    setBusy(true);
+    setBusy("pw");
     setErr(null);
-    const token = localStorage.getItem("walzpay_token") || "";
-    const res = await fetch("/api/auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "change_password",
-        token,
-        oldPassword: oldPw,
-        newPassword: password,
-      }),
-    });
-    const data = await res.json();
-    setBusy(false);
-    if (!res.ok) {
-      setErr(data.error || "Gagal menyimpan password");
-      return;
+    try {
+      const res = await apiFetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "change_password",
+          oldPassword: oldPw,
+          newPassword: password,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data.error || "Gagal menyimpan password");
+        return;
+      }
+      setOldPw("");
+      setPassword("");
+      setPassword2("");
+      pushBubble({
+        title: "Password diperbarui",
+        sub: "Perubahan telah disimpan",
+        tone: "ok",
+      });
+      load();
+    } catch {
+      setErr("Koneksi gagal");
+    } finally {
+      setBusy(null);
     }
-    setOldPw("");
-    setPassword("");
-    setPassword2("");
-    pushBubble({ title: "Password diperbarui", tone: "ok" });
-    load();
   }
 
   async function toggleA2f() {
     if (!u) return;
-    setBusy(true);
-    const token = localStorage.getItem("walzpay_token") || "";
-    const res = await fetch("/api/auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: u.a2fEnabled ? "disable_a2f" : "enable_a2f",
-        token,
-      }),
-    });
-    setBusy(false);
-    if (res.ok) {
+    setBusy("a2f");
+    setErr(null);
+    try {
+      const res = await apiFetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: u.a2fEnabled ? "disable_a2f" : "enable_a2f",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data.error || "Gagal mengubah A2F");
+        return;
+      }
       pushBubble({
         title: u.a2fEnabled ? "A2F dimatikan" : "A2F diaktifkan",
+        sub: "Perubahan telah disimpan",
         tone: "ok",
       });
       load();
+    } catch {
+      setErr("Koneksi gagal");
+    } finally {
+      setBusy(null);
     }
   }
 
-  function logout() {
-    localStorage.removeItem("walzpay_token");
-    window.location.href = "/login";
+  async function logout() {
+    setBusy("logout");
+    try {
+      await apiFetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "logout" }),
+      });
+    } catch {
+      /* still clear client */
+    }
+    setStoredToken(null);
+    try {
+      localStorage.removeItem("walzpay_token");
+    } catch {
+      /* ignore */
+    }
+    window.location.replace("/login");
   }
 
   if (!u && !err) {
@@ -135,10 +184,10 @@ export function AkunClient() {
         </div>
         <h2 className="account-name">{u?.displayName || "Merchant"}</h2>
         <p className="muted" style={{ textAlign: "center" }}>
-          {u?.email}
+          {u?.email || "—"}
         </p>
         <div className="account-badge">
-          {u?.hasPassword ? "Password aktif" : "Tanpa password"}
+          {u?.hasPassword ? "Password aktif" : "Password aktif"}
         </div>
         {u?.createdAt ? (
           <p
@@ -155,25 +204,24 @@ export function AkunClient() {
         <div className="detail-rows">
           <div className="detail-row">
             <span className="muted">ID</span>
-            <strong style={{ color: "var(--ink)", fontSize: 12 }}>
-              {u?.id?.slice(0, 18)}…
-            </strong>
+            <strong className="detail-value">{u?.id || "—"}</strong>
           </div>
           <div className="detail-row">
             <span className="muted">Email</span>
-            <strong style={{ color: "var(--ink)", fontSize: 13 }}>
-              {u?.email}
-            </strong>
+            <strong className="detail-value">{u?.email || "—"}</strong>
           </div>
           <div className="detail-row">
             <span className="muted">Nama</span>
-            <strong style={{ color: "var(--ink)", fontSize: 13 }}>
-              {u?.displayName}
-            </strong>
+            <strong className="detail-value">{u?.displayName || "—"}</strong>
           </div>
           <div className="detail-row">
             <span className="muted">A2F</span>
-            <strong style={{ color: u?.a2fEnabled ? "var(--mint)" : "var(--ink-dim)", fontSize: 13 }}>
+            <strong
+              className="detail-value"
+              style={{
+                color: u?.a2fEnabled ? "var(--mint)" : "var(--ink-dim)",
+              }}
+            >
               {u?.a2fEnabled ? "Aktif" : "Nonaktif"}
             </strong>
           </div>
@@ -185,44 +233,32 @@ export function AkunClient() {
         <p className="muted" style={{ marginBottom: 10 }}>
           Password akun login Anda (bukan password pengaturan sistem).
         </p>
-        <label className="muted" style={{ display: "block", fontSize: 12 }}>
-          Password lama
-        </label>
+        <label className="field-label">Password lama</label>
         <input
-          className="input"
-          style={{ width: "100%", marginTop: 4 }}
+          className="input field-input"
           type={showPw ? "text" : "password"}
           value={oldPw}
           onChange={(e) => setOldPw(e.target.value)}
           placeholder="Password saat ini"
+          autoComplete="current-password"
         />
-        <label
-          className="muted"
-          style={{ display: "block", fontSize: 12, marginTop: 10 }}
-        >
-          Password baru
-        </label>
+        <label className="field-label">Password baru</label>
         <input
-          className="input"
-          style={{ width: "100%", marginTop: 4 }}
+          className="input field-input"
           type={showPw ? "text" : "password"}
           placeholder="Minimal 6 karakter"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          autoComplete="new-password"
         />
-        <label
-          className="muted"
-          style={{ display: "block", fontSize: 12, marginTop: 10 }}
-        >
-          Konfirmasi password baru
-        </label>
+        <label className="field-label">Konfirmasi password baru</label>
         <input
-          className="input"
-          style={{ width: "100%", marginTop: 4 }}
+          className="input field-input"
           type={showPw ? "text" : "password"}
           placeholder="Ulangi password baru"
           value={password2}
           onChange={(e) => setPassword2(e.target.value)}
+          autoComplete="new-password"
         />
         <label className="check-row" style={{ marginTop: 10 }}>
           <input
@@ -236,12 +272,12 @@ export function AkunClient() {
         </label>
         <button
           type="button"
-          className="btn btn-block btn-press"
+          className="btn btn-primary btn-block btn-press"
           style={{ marginTop: 12 }}
-          disabled={busy || password.length < 6 || !oldPw}
+          disabled={busy !== null || password.length < 6 || !oldPw}
           onClick={setPw}
         >
-          {busy ? "Menyimpan…" : "Simpan password"}
+          {busy === "pw" ? "Menyimpan…" : "Simpan password"}
         </button>
       </section>
 
@@ -253,10 +289,14 @@ export function AkunClient() {
         <button
           type="button"
           className="btn btn-block btn-press"
-          disabled={busy}
+          disabled={busy !== null}
           onClick={toggleA2f}
         >
-          {u?.a2fEnabled ? "Matikan A2F" : "Aktifkan A2F"}
+          {busy === "a2f"
+            ? "Memproses…"
+            : u?.a2fEnabled
+              ? "Matikan A2F"
+              : "Aktifkan A2F"}
         </button>
       </section>
 
@@ -264,9 +304,10 @@ export function AkunClient() {
         <button
           type="button"
           className="btn btn-block btn-ghost btn-press"
+          disabled={busy === "logout"}
           onClick={logout}
         >
-          Keluar dari akun
+          {busy === "logout" ? "Keluar…" : "Keluar dari akun"}
         </button>
       </section>
     </>
