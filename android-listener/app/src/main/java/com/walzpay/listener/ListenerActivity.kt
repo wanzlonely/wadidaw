@@ -5,14 +5,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -20,9 +19,6 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.switchmaterial.SwitchMaterial
 import rikka.shizuku.Shizuku
 
-/**
- * Pengaturan Notification Listener (bukan UI website).
- */
 class ListenerActivity : AppCompatActivity() {
 
     private val knownPackages = linkedMapOf(
@@ -46,6 +42,7 @@ class ListenerActivity : AppCompatActivity() {
     private lateinit var tvPermissionStatus: TextView
     private lateinit var tvBatteryStatus: TextView
     private lateinit var tvShizukuStatus: TextView
+    private lateinit var tvOverlayStatus: TextView
     private lateinit var tvSelectedPackages: TextView
     private lateinit var tvLogs: TextView
     private lateinit var etWebhookUrl: EditText
@@ -79,6 +76,7 @@ class ListenerActivity : AppCompatActivity() {
         tvPermissionStatus = findViewById(R.id.tvPermissionStatus)
         tvBatteryStatus = findViewById(R.id.tvBatteryStatus)
         tvShizukuStatus = findViewById(R.id.tvShizukuStatus)
+        tvOverlayStatus = findViewById(R.id.tvOverlayStatus)
         tvSelectedPackages = findViewById(R.id.tvSelectedPackages)
         tvLogs = findViewById(R.id.tvLogs)
         etWebhookUrl = findViewById(R.id.etWebhookUrl)
@@ -106,13 +104,12 @@ class ListenerActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnAutostart).setOnClickListener {
             OemHelper.openAutostartSettings(this)
         }
+        findViewById<Button>(R.id.btnOverlay).setOnClickListener {
+            requestOverlay()
+        }
         findViewById<Button>(R.id.btnShizuku).setOnClickListener {
             if (!ShizukuHelper.isAvailable()) {
-                Toast.makeText(
-                    this,
-                    "Pasang & jalankan app Shizuku dulu",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(this, "Pasang & jalankan app Shizuku dulu", Toast.LENGTH_LONG).show()
             } else if (ShizukuHelper.isGranted()) {
                 Toast.makeText(this, "Shizuku sudah terhubung", Toast.LENGTH_SHORT).show()
             } else {
@@ -120,16 +117,25 @@ class ListenerActivity : AppCompatActivity() {
             }
             refreshUi()
         }
-        findViewById<Button>(R.id.btnPickPackages).setOnClickListener {
-            showPackagePicker()
-        }
+        findViewById<Button>(R.id.btnPickPackages).setOnClickListener { showPackagePicker() }
         findViewById<Button>(R.id.btnClearLogs).setOnClickListener {
             AppLog.clear(this)
             tvLogs.text = AppLog.read(this)
-            Toast.makeText(this, "Log dibersihkan", Toast.LENGTH_SHORT).show()
         }
-        findViewById<Button>(R.id.btnSave).setOnClickListener {
-            saveSettings()
+        findViewById<Button>(R.id.btnSave).setOnClickListener { saveSettings() }
+    }
+
+    private fun requestOverlay() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Settings.canDrawOverlays(this)) {
+                Toast.makeText(this, "Overlay sudah diizinkan", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            startActivity(intent)
         }
     }
 
@@ -145,7 +151,7 @@ class ListenerActivity : AppCompatActivity() {
             return
         }
         if (enabled && apiKey.isEmpty()) {
-            Toast.makeText(this, "API Key wajib dari website Setel", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "API Key wajib", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -158,11 +164,8 @@ class ListenerActivity : AppCompatActivity() {
 
         if (enabled) {
             val i = Intent(this, KeepAliveService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(i)
-            } else {
-                startService(i)
-            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i)
+            else startService(i)
             WatchdogReceiver.schedule(this)
             AppLog.append(this, "Listener ON")
         } else {
@@ -170,7 +173,6 @@ class ListenerActivity : AppCompatActivity() {
             WatchdogReceiver.cancel(this)
             AppLog.append(this, "Listener OFF")
         }
-
         Toast.makeText(this, "Pengaturan disimpan", Toast.LENGTH_SHORT).show()
         refreshUi()
     }
@@ -193,33 +195,20 @@ class ListenerActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("walzpay", Context.MODE_PRIVATE)
         val sel = prefs.getStringSet("selected_packages", null)
         tvSelectedPackages.text = if (sel.isNullOrEmpty()) {
-            "Belum dipilih — ketuk Pilih sumber, lalu Simpan"
+            "Belum dipilih — Pilih sumber lalu Simpan"
         } else {
             "Terpilih ${sel.size} aplikasi (terpasang)"
         }
     }
 
-    /** Hanya aplikasi yang BENAR-BENAR terpasang di HP */
     private fun showPackagePicker() {
         val prefs = getSharedPreferences("walzpay", Context.MODE_PRIVATE)
         val pm = packageManager
 
-        val installedPkgs = mutableSetOf<String>()
-        try {
-            pm.getInstalledApplications(PackageManager.GET_META_DATA).forEach {
-                installedPkgs.add(it.packageName)
-            }
-        } catch (_: Exception) {
-        }
-
-        // Known packages yang terpasang dulu, lalu app user lain yang terpasang
         val available = LinkedHashMap<String, String>()
         knownPackages.forEach { (pkg, label) ->
-            if (installedPkgs.contains(pkg) || isPackageInstalled(pkg)) {
-                available[pkg] = label
-            }
+            if (isPackageInstalled(pkg)) available[pkg] = label
         }
-
         try {
             pm.getInstalledApplications(PackageManager.GET_META_DATA)
                 .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 }
@@ -237,25 +226,18 @@ class ListenerActivity : AppCompatActivity() {
         }
 
         if (available.isEmpty()) {
-            Toast.makeText(this, "Tidak ada aplikasi terpasang yang terdeteksi", Toast.LENGTH_LONG)
-                .show()
+            Toast.makeText(this, "Tidak ada app terpasang terdeteksi", Toast.LENGTH_LONG).show()
             return
         }
 
         val packages = available.keys.toList()
-        val labels = packages.map { pkg ->
-            "${available[pkg]}\n$pkg"
-        }.toTypedArray()
-
+        val labels = packages.map { "${available[it]}\n$it" }.toTypedArray()
         val current = prefs.getStringSet("selected_packages", null)?.toMutableSet()
             ?: packages.filter { knownPackages.containsKey(it) }.toMutableSet()
-
-        // Buang yang tidak terpasang dari selection lama
         current.retainAll(packages.toSet())
-
         val checked = packages.map { current.contains(it) }.toBooleanArray()
 
-        val dialog = AlertDialog.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle("Pilih sumber notifikasi")
             .setMultiChoiceItems(labels, checked) { _, which, isChecked ->
                 val pkg = packages[which]
@@ -264,22 +246,14 @@ class ListenerActivity : AppCompatActivity() {
             .setPositiveButton("Simpan") { _, _ ->
                 prefs.edit().putStringSet("selected_packages", HashSet(current)).apply()
                 refreshPackageLabel()
-                Toast.makeText(
-                    this,
-                    "Sumber disimpan (${current.size} app)",
-                    Toast.LENGTH_SHORT
-                ).show()
-                AppLog.append(this, "Sumber notifikasi: ${current.size} app")
+                Toast.makeText(this, "Sumber disimpan (${current.size})", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Batal", null)
             .setNeutralButton("Pilih semua") { _, _ ->
                 prefs.edit().putStringSet("selected_packages", HashSet(packages)).apply()
                 refreshPackageLabel()
-                Toast.makeText(this, "Semua app terpasang dipilih", Toast.LENGTH_SHORT).show()
             }
-            .create()
-
-        dialog.show()
+            .show()
     }
 
     private fun isPackageInstalled(pkg: String): Boolean {
@@ -292,28 +266,21 @@ class ListenerActivity : AppCompatActivity() {
     }
 
     private fun refreshUi() {
-        tvPermissionStatus.text = if (isNotificationServiceEnabled()) {
-            "Akses notifikasi: AKTIF"
-        } else {
-            "Akses notifikasi: belum diizinkan"
-        }
-
-        tvBatteryStatus.text = if (isIgnoringBattery()) {
-            "Baterai: tanpa optimasi"
-        } else {
-            "Baterai: masih dioptimasi sistem"
-        }
-
+        tvPermissionStatus.text = if (isNotificationServiceEnabled())
+            "Notifikasi: AKTIF" else "Notifikasi: belum diizinkan"
+        tvBatteryStatus.text = if (isIgnoringBattery())
+            "Baterai: tanpa optimasi" else "Baterai: masih dioptimasi"
         tvShizukuStatus.text = ShizukuHelper.statusText()
+        val overlayOk = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
+        tvOverlayStatus.text =
+            if (overlayOk) "Overlay: diizinkan" else "Overlay: belum diizinkan"
         tvLogs.text = AppLog.read(this)
     }
 
     private fun isNotificationServiceEnabled(): Boolean {
         val cn = ComponentName(this, PaymentNotificationListener::class.java)
-        val flat = Settings.Secure.getString(
-            contentResolver,
-            "enabled_notification_listeners"
-        ) ?: return false
+        val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
+            ?: return false
         return flat.split(":").any {
             ComponentName.unflattenFromString(it)?.equals(cn) == true
         }
