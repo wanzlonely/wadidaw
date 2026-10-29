@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatRp, formatTime } from "@/lib/format";
 import { apiFetch } from "@/lib/client-api";
+import { pushBubble } from "@/components/BubbleToasts";
 
 type Order = {
   id: string;
@@ -118,10 +119,16 @@ export function OrdersClient() {
     const n = Number(String(amount).replace(/\D/g, ""));
     if (!n || n <= 0) {
       setErr("Masukkan nominal valid");
+      pushBubble({ title: "Nominal tidak valid", tone: "err" });
       return;
     }
     if (templates.length === 0) {
       setErr("Belum ada QRIS. Upload di halaman Setel dulu.");
+      pushBubble({
+        title: "Belum ada QRIS",
+        sub: "Upload di halaman Setel dulu",
+        tone: "err",
+      });
       return;
     }
     setBusy(true);
@@ -142,12 +149,22 @@ export function OrdersClient() {
     setBusy(false);
     if (!res.ok) {
       setErr(data.error || "Gagal membuat pesanan");
+      pushBubble({
+        title: "Gagal membuat pesanan",
+        sub: data.error || "Coba lagi",
+        tone: "err",
+      });
       return;
     }
     setAmount("");
     const ord = data.order as Order;
     activeIdRef.current = ord.id;
     setActive(ord);
+    pushBubble({
+      title: "QRIS siap",
+      sub: formatRp(ord.totalAmount ?? ord.amount),
+      tone: "ok",
+    });
     load();
   }
 
@@ -159,6 +176,7 @@ export function OrdersClient() {
       method: "DELETE",
     });
     setBusy(false);
+    pushBubble({ title: "Transaksi dibatalkan", tone: "info" });
     setTimeout(() => {
       setCancelling(false);
       if (activeIdRef.current === id) {
