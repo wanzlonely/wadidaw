@@ -15,6 +15,13 @@
             android:text="WALZPAY Listener"
             android:textSize="22sp"
             android:textStyle="bold"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tangkap notifikasi DANA → kirim ke website"
+            android:textSize="13sp"
             android:paddingBottom="12dp" />
 
         <TextView
@@ -24,11 +31,25 @@
             android:text="Cek status izin..."
             android:paddingBottom="8dp" />
 
+        <TextView
+            android:id="@+id/tvBatteryStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cek baterai..."
+            android:paddingBottom="8dp" />
+
         <Button
             android:id="@+id/btnOpenNotificationAccess"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Buka Pengaturan Akses Notifikasi" />
+            android:text="1. Izinkan akses notifikasi" />
+
+        <Button
+            android:id="@+id/btnBattery"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2. Tanpa batasan baterai"
+            android:layout_marginTop="8dp" />
 
         <TextView
             android:layout_width="match_parent"
@@ -40,7 +61,7 @@
             android:id="@+id/etWebhookUrl"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="https://domain-kamu.vercel.app/api/webhook"
+            android:hint="https://wadidaw-zeta.vercel.app/api/webhook"
             android:inputType="textUri" />
 
         <TextView
@@ -53,29 +74,52 @@
             android:id="@+id/etSecret"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="WEBHOOK_SECRET jika dipakai"
+            android:hint="WEBHOOK_SECRET jika dipakai di Vercel"
             android:inputType="textPassword" />
 
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/switchEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Aktifkan Listener"
+            android:text="3. Aktifkan Listener"
             android:paddingTop="16dp" />
 
         <Button
             android:id="@+id/btnSave"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Simpan Pengaturan"
+            android:text="Simpan pengaturan"
             android:layout_marginTop="12dp" />
+
+        <Button
+            android:id="@+id/btnClearLogs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Bersihkan log"
+            android:layout_marginTop="8dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="24dp"
-            android:text="Tips: Pasang Service Keeper dan monitor service com.walzpay.listener agar tidak dimatikan sistem."
-            android:textSize="13sp" />
+            android:paddingTop="20dp"
+            android:text="Log lokal"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvLogs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:text="Belum ada log" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="20dp"
+            android:text="OEM (Xiaomi/OPPO/Vivo): aktifkan Autostart. Opsional: Service Keeper pantau com.walzpay.listener"
+            android:textSize="12sp" />
 
     </LinearLayout>
 </ScrollView>
