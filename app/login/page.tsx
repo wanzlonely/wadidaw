@@ -26,6 +26,7 @@ export default function LoginPage() {
   const [otp, setOtp] = useState("");
   const [captchaInput, setCaptchaInput] = useState("");
   const [challenge, setChallenge] = useState(makeMathChallenge);
+  const [showPw, setShowPw] = useState(false);
 
   useEffect(() => {
     apiFetch("/api/auth")
@@ -45,6 +46,7 @@ export default function LoginPage() {
     setMode(m);
     setErr(null);
     setMsg(null);
+    setShowPw(false);
   }
 
   async function submit(e: React.FormEvent) {
@@ -227,33 +229,55 @@ export default function LoginPage() {
 
               <label className="auth-label">
                 Password
-                <input
-                  className="input"
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Minimal 6 karakter"
-                  autoComplete={
-                    mode === "login" ? "current-password" : "new-password"
-                  }
-                />
+                <div className="pw-field">
+                  <input
+                    className="input"
+                    type={showPw ? "text" : "password"}
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Minimal 6 karakter"
+                    autoComplete={
+                      mode === "login" ? "current-password" : "new-password"
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="pw-toggle"
+                    onClick={() => setShowPw((v) => !v)}
+                    aria-label={showPw ? "Sembunyikan password" : "Tampilkan password"}
+                    tabIndex={-1}
+                  >
+                    {showPw ? "🙈" : "👁"}
+                  </button>
+                </div>
               </label>
 
               {mode === "register" ? (
                 <label className="auth-label">
                   Ulangi password
-                  <input
-                    className="input"
-                    type="password"
-                    required
-                    minLength={6}
-                    value={password2}
-                    onChange={(e) => setPassword2(e.target.value)}
-                    placeholder="Ulangi password"
-                    autoComplete="new-password"
-                  />
+                  <div className="pw-field">
+                    <input
+                      className="input"
+                      type={showPw ? "text" : "password"}
+                      required
+                      minLength={6}
+                      value={password2}
+                      onChange={(e) => setPassword2(e.target.value)}
+                      placeholder="Ulangi password"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      className="pw-toggle"
+                      onClick={() => setShowPw((v) => !v)}
+                      aria-label={showPw ? "Sembunyikan password" : "Tampilkan password"}
+                      tabIndex={-1}
+                    >
+                      {showPw ? "🙈" : "👁"}
+                    </button>
+                  </div>
                 </label>
               ) : null}
 
