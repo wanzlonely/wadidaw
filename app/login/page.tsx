@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 
 type Mode = "login" | "register" | "a2f";
 
@@ -16,61 +15,89 @@ export default function LoginPage() {
   const [token, setToken] = useState<string | null>(null);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [otpPreview, setOtpPreview] = useState<string | null>(null);
-  const [humanOk, setHumanOk] = useState(false);
 
-  const signals = useRef({
-    moveCount: 0,
-    keyCount: 0,
-    durationMs: 0,
-    focusEvents: 0,
-    startedAt: Date.now(),
-  });
+  // Captcha: klik lalu tunggu
+  const [capId, setCapId] = useState<string | null>(null);
+  const [capWait, setCapWait] = useState(2000);
+  const [capPhase, setCapPhase] = useState<"idle" | "waiting" | "done">("idle");
+  const [capProgress, setCapProgress] = useState(0);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const waitTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
-    const onMove = () => {
-      signals.current.moveCount += 1;
-      checkHuman();
-    };
-    const onKey = () => {
-      signals.current.keyCount += 1;
-      checkHuman();
-    };
-    const onFocus = () => {
-      signals.current.focusEvents += 1;
-      checkHuman();
-    };
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("focus", onFocus);
-    const t = setInterval(() => {
-      signals.current.durationMs = Date.now() - signals.current.startedAt;
-      checkHuman();
-    }, 400);
+    // sudah login? ke dashboard
+    const t = localStorage.getItem("walzpay_token");
+    if (t) {
+      fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "me", token: t }),
+      }).then(async (r) => {
+        const d = await r.json();
+        if (r.ok && d.ok && d.a2fVerified) {
+          window.location.href = "/";
+        }
+      });
+    }
+    loadCaptcha();
     return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("focus", onFocus);
-      clearInterval(t);
+      if (waitTimer.current) clearInterval(waitTimer.current);
     };
   }, []);
 
-  function checkHuman() {
-    const s = signals.current;
-    s.durationMs = Date.now() - s.startedAt;
-    const score =
-      (s.moveCount >= 3 ? 30 : s.moveCount >= 1 ? 10 : 0) +
-      (s.keyCount >= 2 ? 25 : 0) +
-      (s.durationMs >= 1500 ? 25 : s.durationMs >= 600 ? 10 : 0) +
-      (s.focusEvents >= 1 ? 20 : 0);
-    setHumanOk(score >= 50);
+  async function loadCaptcha() {
+    setCapPhase("idle");
+    setCapProgress(0);
+    setCaptchaToken(null);
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "captcha_create" }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setCapId(data.id);
+      setCapWait(data.waitMs || 2000);
+    }
+  }
+
+  function startCaptcha() {
+    if (!capId || capPhase !== "idle") return;
+    setCapPhase("waiting");
+    setCapProgress(0);
+    const started = Date.now();
+    if (waitTimer.current) clearInterval(waitTimer.current);
+    waitTimer.current = setInterval(async () => {
+      const elapsed = Date.now() - started;
+      const pct = Math.min(100, (elapsed / capWait) * 100);
+      setCapProgress(pct);
+      if (elapsed >= capWait) {
+        if (waitTimer.current) clearInterval(waitTimer.current);
+        const res = await fetch("/api/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "captcha_solve", id: capId }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setCaptchaToken(data.captchaToken);
+          setCapPhase("done");
+          setCapProgress(100);
+        } else {
+          setErr(data.error || "Captcha gagal");
+          setCapPhase("idle");
+          loadCaptcha();
+        }
+      }
+    }, 80);
   }
 
   async function submit() {
     setErr(null);
     setMsg(null);
     setBusy(true);
-    signals.current.durationMs = Date.now() - signals.current.startedAt;
 
     if (mode === "a2f" && token) {
       const code = otp.join("");
@@ -86,8 +113,13 @@ export default function LoginPage() {
         return;
       }
       localStorage.setItem("walzpay_token", token);
-      setMsg("Berhasil masuk");
       window.location.href = "/";
+      return;
+    }
+
+    if (!captchaToken) {
+      setBusy(false);
+      setErr("Selesaikan verifikasi captcha dulu");
       return;
     }
 
@@ -100,12 +132,7 @@ export default function LoginPage() {
         email,
         password,
         displayName,
-        signals: {
-          moveCount: signals.current.moveCount,
-          keyCount: signals.current.keyCount,
-          durationMs: signals.current.durationMs,
-          focusEvents: signals.current.focusEvents,
-        },
+        captchaToken,
       }),
     });
     const data = await res.json();
@@ -113,12 +140,15 @@ export default function LoginPage() {
 
     if (!res.ok) {
       setErr(data.error || "Gagal");
+      loadCaptcha();
       return;
     }
 
     if (action === "register") {
       setMsg("Registrasi berhasil. Silakan login.");
       setMode("login");
+      setPassword("");
+      loadCaptcha();
       return;
     }
 
@@ -131,7 +161,6 @@ export default function LoginPage() {
     }
 
     localStorage.setItem("walzpay_token", data.token);
-    setMsg("Berhasil masuk");
     window.location.href = "/";
   }
 
@@ -146,13 +175,9 @@ export default function LoginPage() {
   return (
     <div className="auth-shell">
       <div className="auth-logo">
-        <div className="logo logo-live">
-          <span className="logo-text">WALZPAY</span>
-          <span className="logo-shine" aria-hidden />
-        </div>
-        <p className="tagline" style={{ marginTop: 8 }}>
-          Login aman · Upstash Redis
-        </p>
+        <div className="logo-mark">W</div>
+        <h1 className="auth-brand">WALZPAY</h1>
+        <p className="auth-tag">Pembayaran QRIS otomatis</p>
       </div>
 
       <section className="glass card-v2 auth-card anim-pop">
@@ -199,12 +224,9 @@ export default function LoginPage() {
             <p className="muted">
               Masukkan kode 6 digit.
               {otpPreview ? (
-                <>
-                  {" "}
-                  <span style={{ color: "var(--amber)" }}>
-                    (Demo OTP: {otpPreview})
-                  </span>
-                </>
+                <span style={{ color: "var(--amber)" }}>
+                  {" "}(Demo: {otpPreview})
+                </span>
               ) : null}
             </p>
             <div className="otp-inputs">
@@ -273,35 +295,64 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Minimal 6 karakter"
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              autoComplete={
+                mode === "login" ? "current-password" : "new-password"
+              }
             />
 
-            <div className={`human-check${humanOk ? " ok" : ""}`}>
-              {humanOk
-                ? "✓ Verifikasi manusia OK"
-                : "Gerakkan pointer / ketik sebentar untuk verifikasi…"}
+            <div className="captcha-box">
+              {capPhase === "idle" ? (
+                <button
+                  type="button"
+                  className="captcha-btn"
+                  onClick={startCaptcha}
+                  disabled={!capId}
+                >
+                  <span className="captcha-check">□</span>
+                  Saya bukan robot — klik untuk verifikasi
+                </button>
+              ) : null}
+              {capPhase === "waiting" ? (
+                <div className="captcha-waiting">
+                  <div className="captcha-bar">
+                    <div
+                      className="captcha-bar-fill"
+                      style={{ width: `${capProgress}%` }}
+                    />
+                  </div>
+                  <span>Memverifikasi… tunggu sebentar</span>
+                </div>
+              ) : null}
+              {capPhase === "done" ? (
+                <div className="captcha-done">
+                  <span className="captcha-check ok">✓</span>
+                  Verifikasi berhasil
+                </div>
+              ) : null}
             </div>
 
             <button
               type="button"
               className="btn btn-block btn-press"
               style={{ marginTop: 14 }}
-              disabled={busy || !email || password.length < 6 || !humanOk}
+              disabled={
+                busy ||
+                !email ||
+                password.length < 6 ||
+                capPhase !== "done" ||
+                !captchaToken
+              }
               onClick={submit}
             >
               {busy
                 ? "Memproses…"
                 : mode === "register"
-                  ? "Daftar"
+                  ? "Daftar akun"
                   : "Masuk"}
             </button>
           </>
         )}
       </section>
-
-      <p className="muted" style={{ textAlign: "center", marginTop: 20, fontSize: 13 }}>
-        <Link href="/">← Kembali ke beranda</Link>
-      </p>
     </div>
   );
 }
