@@ -1,7 +1,10 @@
 package com.walzpay.listener
 
 import android.app.Notification
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -22,7 +25,6 @@ class PaymentNotificationListener : NotificationListenerService() {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    /** Default packages jika user belum pilih di UI */
     private val defaultPackages = setOf(
         "id.dana",
         "id.dana.kasir",
@@ -44,6 +46,36 @@ class PaymentNotificationListener : NotificationListenerService() {
     private fun selectedPackages(prefs: android.content.SharedPreferences): Set<String> {
         val raw = prefs.getStringSet("selected_packages", null)
         return if (raw.isNullOrEmpty()) defaultPackages else raw
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        AppLog.append(this, "Listener CONNECTED")
+        // Pastikan keep-alive ikut hidup
+        val prefs = getSharedPreferences("walzpay", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("listener_enabled", false)) {
+            try {
+                val i = Intent(this, KeepAliveService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(i)
+                } else {
+                    startService(i)
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        AppLog.append(this, "Listener DISCONNECTED — minta rebind")
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                requestRebind(ComponentName(this, PaymentNotificationListener::class.java))
+            }
+        } catch (e: Exception) {
+            AppLog.append(this, "Rebind gagal: ${e.message}")
+        }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -168,7 +200,6 @@ class PaymentNotificationListener : NotificationListenerService() {
 
             val body = json.toString().toRequestBody("application/json".toMediaType())
             val reqBuilder = Request.Builder().url(url).post(body)
-            // Multi-tenant: server setTenant via API key
             reqBuilder.header("X-Api-Key", apiKey)
             reqBuilder.header("X-Walzpay-Key", apiKey)
             if (!secret.isNullOrBlank()) {
