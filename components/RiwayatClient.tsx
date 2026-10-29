@@ -4,25 +4,48 @@ import { useEffect, useMemo, useState } from "react";
 import { formatRp, formatTime } from "@/lib/format";
 import { apiFetch } from "@/lib/client-api";
 import {
-  IconAlert, IconCheck, IconSpinner, IconRefresh, IconFilter, IconDownload, IconList, IconBell, IconCash,
+  IconAlert,
+  IconSpinner,
+  IconRefresh,
+  IconFilter,
+  IconDownload,
+  IconList,
+  IconBell,
+  IconCash,
 } from "@/components/Icons";
-import { Shell } from "@/components/Shell";
 
 type Order = {
   id: string;
   amount: number;
+  totalAmount?: number;
+  adminFee?: number;
   status: string;
-  note?: string;
   createdAt: string;
-  paidAt?: string;
+  paidAt?: string | null;
+  expiresAt?: string | null;
+  customerName?: string | null;
+  note?: string | null;
+  matchedPaymentId?: string | null;
 };
 
 type Payment = {
   id: string;
+  merchantId: string;
   amount: number;
-  source?: string;
-  createdAt: string;
+  paymentSource?: string | null;
+  senderName?: string | null;
+  rawTitle?: string | null;
+  rawText?: string | null;
+  receivedAt: string;
+  matchedOrderId?: string | null;
 };
+
+function effectiveStatus(o: Order): string {
+  if (o.status === "pending" && o.expiresAt) {
+    if (new Date(o.expiresAt).getTime() <= Date.now()) return "expired";
+  }
+  return o.status;
+}
 
 function statusLabel(st: string) {
   if (st === "success") return "Sukses";
@@ -32,72 +55,82 @@ function statusLabel(st: string) {
   return st;
 }
 
-function statusClass(st: string) {
-  if (st === "success") return "ok";
-  if (st === "pending") return "wait";
-  if (st === "expired" || st === "cancelled") return "bad";
-  return "";
+function StatusDot({ st }: { st: string }) {
+  return <span className={`status-dot status-${st}`} aria-hidden />;
 }
 
 export function RiwayatClient() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [filter, setFilter] = useState("all");
-  const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function load() {
-    setBusy(true);
-    setError(null);
-    try {
-      const [oRes, pRes] = await Promise.all([
-        apiFetch("/api/orders"),
-        apiFetch("/api/payments"),
-      ]);
-      const oData = await oRes.json();
-      const pData = await pRes.json();
-      if (!oRes.ok) {
-        setError(oData.error || "Gagal memuat");
-        return;
-      }
-      setOrders(oData.orders || []);
-      setPayments(pData.payments || pData.items || []);
-    } catch {
-      setError("Koneksi gagal");
-    } finally {
-      setBusy(false);
+    const [oRes, pRes] = await Promise.all([
+      apiFetch("/api/orders"),
+      apiFetch("/api/payments"),
+    ]);
+    const oData = await oRes.json();
+    const pData = await pRes.json();
+    if (!oRes.ok) {
+      setError(oData.error || "Gagal memuat data");
+      return;
     }
+    setError(null);
+    setOrders(oData.orders ?? []);
+    setPayments(pData.payments ?? []);
   }
 
   useEffect(() => {
     load();
+    const t = setInterval(load, 3000);
+    return () => clearInterval(t);
   }, []);
 
   const filtered = useMemo(() => {
-    if (filter === "all") return orders;
-    return orders.filter((o) => o.status === filter);
-  }, [orders, filter]);
+    return orders.filter((o) => {
+      const st = effectiveStatus(o);
+      if (statusFilter !== "all" && st !== statusFilter) return false;
+      if (!q) return true;
+      const s =
+        `${o.id} ${o.amount} ${o.totalAmount} ${st} ${o.customerName ?? ""} ${o.note ?? ""}`.toLowerCase();
+      return s.includes(q.toLowerCase());
+    });
+  }, [orders, q, statusFilter]);
 
   function exportCsv() {
-    const rows = [
-      ["id", "amount", "status", "createdAt", "paidAt", "note"].join(","),
-      ...filtered.map((o) =>
-        [o.id, o.amount, o.status, o.createdAt, o.paidAt || "", JSON.stringify(o.note || "")].join(",")
-      ),
-    ];
-    const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+    const header =
+      "id,status,amount,totalAmount,adminFee,createdAt,paidAt,expiresAt\n";
+    const rows = filtered
+      .map((o) => {
+        const st = effectiveStatus(o);
+        return `${o.id},${st},${o.amount},${o.totalAmount ?? o.amount},${o.adminFee ?? 0},${o.createdAt},${o.paidAt ?? ""},${o.expiresAt ?? ""}`;
+      })
+      .join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `riwayat-${Date.now()}.csv`;
+    a.download = `walzpay-riwayat-${Date.now()}.csv`;
     a.click();
   }
 
+  async function refresh() {
+    setBusy(true);
+    await load();
+    setBusy(false);
+  }
+
   return (
-    <Shell title="Riwayat" active="/riwayat">
+    <div className="riwayat-v2">
       {error ? (
-        <section className="glass card-v2">
+        <section className="glass card-v2 anim-shake">
           <p style={{ color: "var(--rose)", margin: 0 }}>
-            <span className="inline-ico"><IconAlert size={15} /></span> {error}
+            <span className="inline-ico">
+              <IconAlert size={15} />
+            </span>{" "}
+            {error}
           </p>
         </section>
       ) : null}
@@ -106,23 +139,35 @@ export function RiwayatClient() {
         <h2>
           <IconFilter size={16} /> Filter & ekspor
         </h2>
-        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-          {(["all", "pending", "success", "expired", "cancelled"] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              className={`btn btn-ghost btn-sm${filter === f ? " active-filter" : ""}`}
-              onClick={() => setFilter(f)}
-            >
-              {f === "all" ? "Semua" : statusLabel(f)}
-            </button>
-          ))}
+        <div className="form-row">
+          <input
+            className="input"
+            placeholder="Cari nominal atau ID…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <select
+            className="input"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">Semua</option>
+            <option value="pending">Menunggu</option>
+            <option value="success">Sukses</option>
+            <option value="expired">Kedaluwarsa</option>
+            <option value="cancelled">Dibatalkan</option>
+          </select>
         </div>
-        <div className="row" style={{ gap: 8, marginTop: 12 }}>
-          <button type="button" className="btn btn-ghost btn-press" onClick={exportCsv}>
+        <div className="form-row" style={{ marginTop: 10 }}>
+          <button type="button" className="btn btn-press" onClick={exportCsv}>
             <IconDownload size={14} /> Export CSV
           </button>
-          <button type="button" className="btn btn-ghost btn-press" onClick={load} disabled={busy}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-press"
+            disabled={busy}
+            onClick={refresh}
+          >
             {busy ? (
               <>
                 <IconSpinner size={14} /> Memuat…
@@ -143,46 +188,78 @@ export function RiwayatClient() {
         {filtered.length === 0 ? (
           <p className="empty">Belum ada transaksi</p>
         ) : (
-          <div className="list-v2">
-            {filtered.map((o) => (
-              <div key={o.id} className="list-row">
-                <div className="list-main">
-                  <strong>{formatRp(o.amount)}</strong>
-                  <span className="muted">{formatTime(o.createdAt)}</span>
+          filtered.map((o, i) => {
+            const st = effectiveStatus(o);
+            return (
+              <div
+                key={o.id}
+                className={`list-item riwayat-item anim-rise status-${st}`}
+                style={{
+                  marginTop: 10,
+                  animationDelay: `${Math.min(i, 8) * 0.04}s`,
+                }}
+              >
+                <span className="riwayat-ico" aria-hidden>
+                  <StatusDot st={st} />
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="amount sm">
+                    {formatRp(o.totalAmount ?? o.amount)}
+                  </div>
+                  <p className="muted" style={{ fontSize: 12 }}>
+                    Nominal {formatRp(o.amount)}
+                    {(o.adminFee ?? 0) > 0
+                      ? ` + admin ${formatRp(o.adminFee!)}`
+                      : ""}
+                  </p>
+                  <p className="muted" style={{ fontSize: 11 }}>
+                    {formatTime(o.createdAt)}
+                    {o.paidAt ? ` · dibayar ${formatTime(o.paidAt)}` : ""}
+                  </p>
                 </div>
-                <span className={`status-chip ${statusClass(o.status)}`}>
-                  {statusLabel(o.status)}
+                <span className={`status-chip status-${st}`}>
+                  {statusLabel(st)}
                 </span>
               </div>
-            ))}
-          </div>
+            );
+          })
         )}
       </section>
 
-      <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.08s" }}>
-        <h2>
-          <IconBell size={16} /> Notifikasi masuk · {payments.length}
-        </h2>
-        {payments.length === 0 ? (
-          <p className="empty">Belum ada notifikasi pembayaran</p>
-        ) : (
-          <div className="list-v2">
-            {payments.slice(0, 30).map((p) => (
-              <div key={p.id} className="list-row">
-                <div className="list-ico">
-                  <IconCash size={18} />
-                </div>
-                <div className="list-main">
-                  <strong>{formatRp(p.amount)}</strong>
-                  <span className="muted">
-                    {p.source || "e-wallet"} · {formatTime(p.createdAt)}
-                  </span>
-                </div>
+      {payments.length > 0 ? (
+        <section
+          className="glass card-v2 anim-rise"
+          style={{ animationDelay: "0.08s" }}
+        >
+          <h2>
+            <IconBell size={16} /> Notifikasi masuk · {payments.length}
+          </h2>
+          {payments.slice(0, 30).map((p, i) => (
+            <div
+              key={p.id}
+              className="list-item anim-rise"
+              style={{
+                marginTop: 10,
+                animationDelay: `${Math.min(i, 6) * 0.03}s`,
+              }}
+            >
+              <span className="riwayat-ico" aria-hidden>
+                <IconCash size={18} />
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="amount sm">{formatRp(p.amount)}</div>
+                <p className="muted" style={{ fontSize: 12 }}>
+                  {p.merchantId}
+                  {p.senderName ? ` · ${p.senderName}` : ""}
+                </p>
+                <p className="muted" style={{ fontSize: 11 }}>
+                  {formatTime(p.receivedAt)}
+                </p>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
-    </Shell>
+            </div>
+          ))}
+        </section>
+      ) : null}
+    </div>
   );
 }
