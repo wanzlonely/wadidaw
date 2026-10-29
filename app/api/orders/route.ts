@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createOrder, listOrders, cancelOrder, sweepExpiredOrders } from "@/lib/store";
 import { getStaticQris } from "@/lib/static-qris";
-import { convertStaticToDynamic, computeAdminFee } from "@/lib/qris-convert";
+import { convertStaticToDynamic } from "@/lib/qris-convert";
 import { getSettings } from "@/lib/settings";
 import { hasRedisEnv, getRedis, KEYS } from "@/lib/redis";
 
@@ -48,20 +48,9 @@ export async function POST(req: NextRequest) {
   try {
     const settings = await getSettings();
 
-    let adminFee = 0;
-    if (body.adminFee != null && Number.isFinite(Number(body.adminFee))) {
-      adminFee = Math.max(0, Math.round(Number(body.adminFee)));
-    } else if (settings.feeType === "fixed") {
-      adminFee = computeAdminFee(amount, {
-        type: "fixed",
-        value: settings.feeValue,
-      });
-    } else if (settings.feeType === "percent") {
-      adminFee = computeAdminFee(amount, {
-        type: "percent",
-        value: settings.feeValue,
-      });
-    }
+    // Biaya admin selalu acak (anti-collision) — rentang dari pengaturan
+    const minFee = Math.max(0, Math.round(settings.feeMin ?? 1));
+    const maxFee = Math.max(minFee, Math.round(settings.feeMax ?? 99));
 
     const expiresInMinutes =
       body.expiresInMinutes != null
@@ -75,7 +64,9 @@ export async function POST(req: NextRequest) {
       note: body.note != null ? String(body.note) : null,
       expiresInMinutes,
       dynamic: body.dynamic === false ? false : true,
-      adminFee,
+      adminFee: 0,
+      minFee,
+      maxFee,
     });
 
     const qrisStaticId =

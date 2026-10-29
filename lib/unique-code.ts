@@ -34,7 +34,7 @@ export function allocateAdminFee(
   }
 
   throw new Error(
-    `Semua biaya admin ${lo}\u2013${hi} sedang dipakai untuk nominal ini. Tunggu order expired atau naikkan rentang admin di Profil.`
+    `Semua biaya admin ${lo}\u2013${hi} sedang dipakai untuk nominal ini. Tunggu order kedaluwarsa atau naikkan rentang admin di Setel.`
   );
 }
 
@@ -60,5 +60,5 @@ export function allocateUniqueCode(taken: Set<number>): number {
       return code;
     }
   }
-  throw new Error("Semua kode unik 100\u2013999 sedang dipakai. Tunggu order expired.");
+  throw new Error("Semua kode unik 100\u2013999 sedang dipakai. Tunggu order kedaluwarsa.");
 }
