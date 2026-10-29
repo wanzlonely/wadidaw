@@ -2,6 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { setStoredToken, apiFetch } from "@/lib/api";
+import {
+  IconUser,
+  IconMail,
+  IconLock,
+  IconEye,
+  IconKey,
+  IconSparkle,
+  IconCalc,
+  IconRefresh,
+  IconInbox,
+  IconAlert,
+  IconCheck,
+  IconSpinner,
+} from "@/components/Icons";
 
 type Mode = "login" | "register";
 
@@ -148,7 +162,12 @@ export default function LoginPage() {
   }
 
   const title = useMemo(
-    () => (needOtp ? "Verifikasi OTP" : mode === "login" ? "Selamat datang" : "Buat akun baru"),
+    () =>
+      needOtp
+        ? "Verifikasi OTP"
+        : mode === "login"
+          ? "Selamat datang"
+          : "Buat akun baru",
     [needOtp, mode]
   );
 
@@ -166,207 +185,241 @@ export default function LoginPage() {
           </div>
           <h1 className="auth-v2-brand">WALZPAY</h1>
           <p className="auth-v2-sub">{title}</p>
-          <p className="auth-v2-hint">QRIS · auto settle · liquid glass</p>
+          <p className="auth-v2-hint">QRIS · webhook · auto settle</p>
         </header>
 
         {msg ? (
-          <div className="toast-bubble toast-bubble-in" role="status">
-            ✅ {msg}
+          <div className="toast-banner anim-rise">
+            <span className="inline-ico">
+              <IconCheck size={15} />
+            </span>{" "}
+            {msg}
           </div>
         ) : null}
         {err ? (
-          <div className="toast-bubble toast-bubble-err toast-bubble-in" role="alert">
-            ⚠️ {err}
+          <div className="toast-banner anim-shake" style={{ background: "rgba(255,143,163,0.12)", borderColor: "rgba(255,143,163,0.3)", color: "var(--rose)" }}>
+            <span className="inline-ico">
+              <IconAlert size={15} />
+            </span>{" "}
+            {err}
           </div>
         ) : null}
 
-        <div className="auth-v2-card glass card-v2 anim-rise" style={{ animationDelay: "0.06s" }}>
-          {!needOtp ? (
-            <>
-              <div className="auth-v2-tabs" role="tablist">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === "login"}
-                  className={mode === "login" ? "active" : undefined}
-                  onClick={() => switchMode("login")}
-                >
-                  🔑 Masuk
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === "register"}
-                  className={mode === "register" ? "active" : undefined}
-                  onClick={() => switchMode("register")}
-                >
-                  ✨ Daftar
-                </button>
-              </div>
+        {!needOtp ? (
+          <section className="glass card-v2 auth-v2-card anim-rise">
+            <div className="auth-v2-tabs">
+              <button
+                type="button"
+                className={mode === "login" ? "active" : undefined}
+                onClick={() => switchMode("login")}
+              >
+                <span className="tab-ico">
+                  <IconKey size={14} />
+                </span>{" "}
+                Masuk
+              </button>
+              <button
+                type="button"
+                className={mode === "register" ? "active" : undefined}
+                onClick={() => switchMode("register")}
+              >
+                <span className="tab-ico">
+                  <IconSparkle size={14} />
+                </span>{" "}
+                Daftar
+              </button>
+            </div>
 
-              <form onSubmit={submit} className="auth-v2-form">
-                {mode === "register" ? (
-                  <label className="auth-v2-field">
-                    <span className="auth-v2-label">👤 Nama tampilan</span>
-                    <input
-                      className="input"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder="Toko Saya"
-                      autoComplete="name"
-                    />
-                  </label>
-                ) : null}
-
+            <form onSubmit={submit} className="auth-v2-form">
+              {mode === "register" ? (
                 <label className="auth-v2-field">
-                  <span className="auth-v2-label">📧 Email</span>
+                  <span className="auth-v2-label">
+                    <span className="lbl-ico">
+                      <IconUser size={13} />
+                    </span>{" "}
+                    Nama tampilan
+                  </span>
                   <input
                     className="input"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="email@contoh.com"
-                    autoComplete="email"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Nama toko / merchant"
+                    autoComplete="name"
                   />
                 </label>
+              ) : null}
 
+              <label className="auth-v2-field">
+                <span className="auth-v2-label">
+                  <span className="lbl-ico">
+                    <IconMail size={13} />
+                  </span>{" "}
+                  Email
+                </span>
+                <input
+                  className="input"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="email@contoh.com"
+                  required
+                  autoComplete="email"
+                />
+              </label>
+
+              <label className="auth-v2-field">
+                <span className="auth-v2-label">
+                  <span className="lbl-ico">
+                    <IconLock size={13} />
+                  </span>{" "}
+                  Password
+                </span>
+                <div className="input-with-action">
+                  <input
+                    className="input"
+                    type={showPw ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Minimal 6 karakter"
+                    required
+                    minLength={6}
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  />
+                  <button
+                    type="button"
+                    className="input-action"
+                    onClick={() => setShowPw((v) => !v)}
+                    aria-label="Tampilkan password"
+                  >
+                    <IconEye size={15} open={showPw} />
+                  </button>
+                </div>
+              </label>
+
+              {mode === "register" ? (
                 <label className="auth-v2-field">
-                  <span className="auth-v2-label">🔒 Password</span>
-                  <div className="pw-field">
+                  <span className="auth-v2-label">
+                    <span className="lbl-ico">
+                      <IconLock size={13} />
+                    </span>{" "}
+                    Ulangi password
+                  </span>
+                  <div className="input-with-action">
                     <input
                       className="input"
                       type={showPw ? "text" : "password"}
+                      value={password2}
+                      onChange={(e) => setPassword2(e.target.value)}
+                      placeholder="Ulangi password"
                       required
                       minLength={6}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Minimal 6 karakter"
-                      autoComplete={mode === "login" ? "current-password" : "new-password"}
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
-                      className="pw-toggle"
+                      className="input-action"
                       onClick={() => setShowPw((v) => !v)}
-                      aria-label={showPw ? "Sembunyikan password" : "Tampilkan password"}
-                      tabIndex={-1}
+                      aria-label="Tampilkan password"
                     >
-                      {showPw ? "🙉" : "🙈"}
+                      <IconEye size={15} open={showPw} />
                     </button>
                   </div>
                 </label>
+              ) : null}
 
-                {mode === "register" ? (
-                  <label className="auth-v2-field">
-                    <span className="auth-v2-label">🔒 Ulangi password</span>
-                    <div className="pw-field">
-                      <input
-                        className="input"
-                        type={showPw ? "text" : "password"}
-                        required
-                        minLength={6}
-                        value={password2}
-                        onChange={(e) => setPassword2(e.target.value)}
-                        placeholder="Ulangi password"
-                        autoComplete="new-password"
-                      />
-                      <button
-                        type="button"
-                        className="pw-toggle"
-                        onClick={() => setShowPw((v) => !v)}
-                        aria-label={showPw ? "Sembunyikan password" : "Tampilkan password"}
-                        tabIndex={-1}
-                      >
-                        {showPw ? "🙉" : "🙈"}
-                      </button>
-                    </div>
-                  </label>
-                ) : null}
-
-                <div className="auth-v2-captcha">
-                  <div className="auth-v2-captcha-top">
-                    <span className="auth-v2-captcha-q">🧮 {challenge.question} = ?</span>
-                    <button
-                      type="button"
-                      className="auth-v2-refresh"
-                      onClick={resetCaptcha}
-                      title="Soal baru"
-                      aria-label="Ganti soal captcha"
-                    >
-                      ↻
-                    </button>
-                  </div>
-                  <input
-                    className="input"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    required
-                    value={captchaInput}
-                    onChange={(e) => setCaptchaInput(e.target.value.replace(/\D/g, ""))}
-                    placeholder="Jawaban"
-                    autoComplete="off"
-                    aria-label="Jawaban captcha"
-                  />
+              <div className="auth-v2-captcha">
+                <div className="auth-v2-captcha-top">
+                  <span className="auth-v2-captcha-q">
+                    <span className="lbl-ico">
+                      <IconCalc size={14} />
+                    </span>{" "}
+                    {challenge.question} = ?
+                  </span>
+                  <button
+                    type="button"
+                    className="auth-v2-refresh"
+                    onClick={resetCaptcha}
+                    aria-label="Ganti soal"
+                  >
+                    <IconRefresh size={16} />
+                  </button>
                 </div>
-
-                <button type="submit" className="btn btn-block btn-press auth-v2-submit" disabled={busy}>
-                  {busy
-                    ? "⏳ Memproses…"
-                    : mode === "login"
-                      ? "Masuk →"
-                      : "Daftar akun →"}
-                </button>
-              </form>
-            </>
-          ) : (
-            <form onSubmit={submitOtp} className="auth-v2-form">
-              <div className="auth-v2-otp-head">
-                <span className="auth-v2-otp-ico" aria-hidden>
-                  📬
-                </span>
-                <h2 className="otp-title">Kode OTP</h2>
-                <p className="muted" style={{ textAlign: "center", margin: 0 }}>
-                  6 digit dikirim ke <strong style={{ color: "var(--ink)" }}>{otpEmail}</strong>
-                </p>
-              </div>
-              <label className="auth-v2-field">
-                <span className="auth-v2-label">Kode</span>
                 <input
-                  className="input otp-single"
+                  className="input"
                   inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={6}
+                  value={captchaInput}
+                  onChange={(e) => setCaptchaInput(e.target.value)}
+                  placeholder="Jawaban"
                   required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-block btn-press auth-v2-submit"
+                disabled={busy}
+              >
+                {busy ? (
+                  <>
+                    <IconSpinner size={15} /> Memproses…
+                  </>
+                ) : mode === "login" ? (
+                  "Masuk"
+                ) : (
+                  "Daftar"
+                )}
+              </button>
+            </form>
+          </section>
+        ) : (
+          <section className="glass card-v2 auth-v2-card anim-rise">
+            <div className="auth-v2-otp-head">
+              <span className="auth-v2-otp-ico">
+                <IconInbox size={28} />
+              </span>
+              <p className="muted" style={{ margin: 0 }}>
+                Kode dikirim ke <strong>{otpEmail}</strong>
+              </p>
+            </div>
+            <form onSubmit={submitOtp} className="auth-v2-form">
+              <label className="auth-v2-field">
+                <span className="auth-v2-label">Kode OTP</span>
+                <input
+                  className="input"
+                  inputMode="numeric"
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="••••••"
-                  autoComplete="one-time-code"
+                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="6 digit"
+                  required
                   autoFocus
                 />
               </label>
               <button
                 type="submit"
-                className="btn btn-block btn-press auth-v2-submit"
-                disabled={busy || otp.length < 6}
+                className="btn btn-block btn-press"
+                disabled={busy}
               >
-                {busy ? "⏳ Memverifikasi…" : "Verifikasi & masuk →"}
+                {busy ? (
+                  <>
+                    <IconSpinner size={15} /> Memverifikasi…
+                  </>
+                ) : (
+                  "Verifikasi & masuk"
+                )}
               </button>
               <button
                 type="button"
-                className="btn btn-ghost btn-block"
-                style={{ marginTop: 4 }}
+                className="btn btn-block btn-ghost btn-press"
                 disabled={busy}
                 onClick={resendOtp}
               >
-                🔄 Kirim ulang OTP
+                <IconRefresh size={14} /> Kirim ulang OTP
               </button>
             </form>
-          )}
-        </div>
+          </section>
+        )}
 
-        <p className="auth-v2-footer muted anim-rise" style={{ animationDelay: "0.12s" }}>
-          Aman · enkripsi · monitoring QRIS
-        </p>
+        <p className="auth-v2-footer muted">WALZPAY · liquid glass</p>
       </div>
     </div>
   );
