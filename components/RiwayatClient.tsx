@@ -45,7 +45,7 @@ export function RiwayatClient() {
     const oData = await oRes.json();
     const pData = await pRes.json();
     if (!oRes.ok) {
-      setError(oData.error || "Gagal load orders");
+      setError(oData.error || "Gagal memuat data");
       return;
     }
     setError(null);
@@ -84,38 +84,25 @@ export function RiwayatClient() {
     a.click();
   }
 
-  async function clearAll() {
-    if (!confirm("Hapus semua riwayat order & payment di Redis?")) return;
+  async function refresh() {
     setBusy(true);
-    await Promise.all([
-      fetch("/api/payments", { method: "DELETE" }),
-      fetch("/api/orders?all=1", { method: "DELETE" }).catch(() => null),
-    ]);
+    await load();
     setBusy(false);
-    load();
   }
 
-  async function purgeExpired() {
-    setBusy(true);
-    await fetch("/api/orders?status=pending");
-    setBusy(false);
-    load();
-  }
-
-  const statusColor = (st: string) => {
-    if (st === "success") return "var(--mint)";
-    if (st === "pending") return "#f0c674";
-    if (st === "expired") return "var(--rose)";
-    return "var(--muted)";
+  const statusLabel = (st: string) => {
+    if (st === "success") return "Sukses";
+    if (st === "pending") return "Menunggu";
+    if (st === "expired") return "Kedaluwarsa";
+    if (st === "cancelled") return "Dibatalkan";
+    return st;
   };
 
   return (
     <>
       {error ? (
-        <section className="glass">
-          <p className="muted" style={{ color: "#ff8a80" }}>
-            {error}
-          </p>
+        <section className="glass anim-shake">
+          <p style={{ color: "var(--rose)" }}>{error}</p>
         </section>
       ) : null}
 
@@ -123,7 +110,7 @@ export function RiwayatClient() {
         <div className="form-row">
           <input
             className="input"
-            placeholder="Cari nominal / id\u2026"
+            placeholder="Cari nominal atau ID\u2026"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -132,32 +119,24 @@ export function RiwayatClient() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="all">Semua status</option>
-            <option value="pending">Pending</option>
+            <option value="all">Semua</option>
+            <option value="pending">Menunggu</option>
             <option value="success">Sukses</option>
-            <option value="expired">Expired</option>
+            <option value="expired">Kedaluwarsa</option>
             <option value="cancelled">Dibatalkan</option>
           </select>
         </div>
         <div className="form-row" style={{ marginTop: 10 }}>
-          <button type="button" className="btn" onClick={exportCsv}>
+          <button type="button" className="btn btn-press" onClick={exportCsv}>
             Export CSV
           </button>
           <button
             type="button"
-            className="btn btn-ghost"
+            className="btn btn-ghost btn-press"
             disabled={busy}
-            onClick={purgeExpired}
+            onClick={refresh}
           >
-            Refresh
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            disabled={busy}
-            onClick={clearAll}
-          >
-            Hapus semua
+            {busy ? "Memuat\u2026" : "Refresh"}
           </button>
         </div>
       </section>
@@ -166,17 +145,21 @@ export function RiwayatClient() {
         <h2>Transaksi \u00b7 {filtered.length}</h2>
         {filtered.length === 0 ? (
           <p className="empty" style={{ marginTop: 12 }}>
-            Tidak ada data
+            Belum ada transaksi
           </p>
         ) : (
-          filtered.map((o) => (
-            <div key={o.id} className="list-item" style={{ marginTop: 10 }}>
+          filtered.map((o, i) => (
+            <div
+              key={o.id}
+              className={`list-item anim-rise status-${o.status}`}
+              style={{ marginTop: 10, animationDelay: `${Math.min(i, 8) * 0.04}s` }}
+            >
               <div style={{ flex: 1 }}>
                 <div className="amount sm">
                   {formatRp(o.totalAmount ?? o.amount)}
                 </div>
                 <p className="muted" style={{ fontSize: 12 }}>
-                  Base {formatRp(o.amount)}
+                  Nominal {formatRp(o.amount)}
                   {(o.adminFee ?? 0) > 0
                     ? ` + admin ${formatRp(o.adminFee!)}`
                     : ""}
@@ -186,16 +169,8 @@ export function RiwayatClient() {
                   {o.paidAt ? ` \u00b7 dibayar ${formatTime(o.paidAt)}` : ""}
                 </p>
               </div>
-              <span
-                className="status-chip"
-                style={{
-                  color: statusColor(o.status),
-                  borderColor: statusColor(o.status),
-                  textTransform: "uppercase",
-                  fontSize: 11,
-                }}
-              >
-                {o.status}
+              <span className={`status-chip status-${o.status}`}>
+                {statusLabel(o.status)}
               </span>
             </div>
           ))
@@ -205,8 +180,12 @@ export function RiwayatClient() {
       {payments.length > 0 ? (
         <section className="glass">
           <h2>Notifikasi masuk \u00b7 {payments.length}</h2>
-          {payments.slice(0, 30).map((p) => (
-            <div key={p.id} className="list-item" style={{ marginTop: 10 }}>
+          {payments.slice(0, 30).map((p, i) => (
+            <div
+              key={p.id}
+              className="list-item anim-rise"
+              style={{ marginTop: 10, animationDelay: `${Math.min(i, 6) * 0.03}s` }}
+            >
               <div style={{ flex: 1 }}>
                 <div className="amount sm">{formatRp(p.amount)}</div>
                 <p className="muted" style={{ fontSize: 12 }}>
