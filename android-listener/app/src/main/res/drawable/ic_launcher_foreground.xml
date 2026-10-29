@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Card -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M34,28h40c3.3,0 6,2.7 6,6v24c0,3.3 -2.7,6 -6,6H34c-3.3,0 -6,-2.7 -6,-6V34c0,-3.3 2.7,-6 6,-6z" />
+    <path
+        android:fillColor="#93C5FD"
+        android:pathData="M38,38h10v6H38z" />
+    <path
+        android:fillColor="#1D4ED8"
+        android:pathData="M34,48h40v4H34z" />
+
+    <!-- W mark -->
+    <path
+        android:fillColor="#60A5FA"
+        android:pathData="M28,72 L36,72 L42,88 L48,72 L56,72 L48,96 L40,96 L36,86 L32,96 L24,96 Z" />
+
+    <!-- Arrow -->
+    <path
+        android:fillColor="#A78BFA"
+        android:pathData="M62,78 L78,62 L82,66 L70,78 L82,78 L82,86 L62,86 Z" />
+</vector>
