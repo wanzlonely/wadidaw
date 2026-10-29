@@ -1,90 +1,95 @@
-/* Beranda · Riwayat · Setel · Pesanan */
-
-.home-v2 .home-hero {
-  text-align: center;
-  padding-top: 22px;
-  padding-bottom: 18px;
-}
-
-.home-latest .amount {
-  margin: 0;
-}
-
-.riwayat-item {
+/* Shared page polish */
+.page-head {
+  display: flex;
   align-items: flex-start;
-}
-
-.riwayat-ico {
-  font-size: 18px;
-  line-height: 1.2;
-  flex-shrink: 0;
-  width: 28px;
-  text-align: center;
-  margin-top: 2px;
-}
-
-.setel-v2 .qris-info-panel {
-  margin-top: 14px;
-}
-
-.qris-info-title {
-  margin: 0 0 10px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--aqua);
-}
-
-.qris-info-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.qris-info-row {
-  display: flex;
   justify-content: space-between;
-  gap: 10px;
-  font-size: 13px;
+  gap: 12px;
+  margin-bottom: 4px;
 }
 
-.qris-info-row span {
+.page-kicker {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--ink-faint);
+  margin: 0 0 6px;
 }
 
-.qris-info-row strong {
-  color: var(--ink);
-  text-align: right;
+.page-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
-.sec-title {
+.page-lead {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+
+.card-v2 h2 {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 650;
+  margin: 0 0 12px;
+  letter-spacing: -0.01em;
 }
 
-.sec-title svg {
+.card-v2 h2 svg {
   flex-shrink: 0;
-  opacity: 0.85;
-  color: var(--aqua);
+  opacity: 0.9;
 }
 
-.izin-ico {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  display: flex;
+.btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(110, 182, 255, 0.12);
-  border: 1px solid rgba(110, 182, 255, 0.2);
-  color: var(--aqua);
+  gap: 7px;
+}
+
+.btn svg {
   flex-shrink: 0;
 }
 
-.izin-ico svg {
-  width: 18px;
-  height: 18px;
+.spin-ico {
+  animation: spin-ico 0.8s linear infinite;
+}
+
+@keyframes spin-ico {
+  to { transform: rotate(360deg); }
+}
+
+/* Status chips without emoji */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.status-chip.ok {
+  background: rgba(52, 211, 153, 0.14);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.28);
+}
+
+.status-chip.wait {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.25);
+}
+
+.status-chip.bad {
+  background: rgba(255, 143, 163, 0.12);
+  color: #ff8fa3;
+  border-color: rgba(255, 143, 163, 0.25);
 }
