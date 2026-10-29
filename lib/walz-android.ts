@@ -11,6 +11,8 @@ declare global {
       openOverlay: () => void;
       openShizuku: () => void;
       openPackagePicker: () => void;
+      getPackagesJson: () => string;
+      setSelectedPackages: (json: string) => void;
       toggleListener: () => void;
       saveListener: () => void;
       requestPostNotifications: () => void;
@@ -41,6 +43,12 @@ export type AndroidStatus = {
   push?: boolean;
 };
 
+export type PackageItem = {
+  pkg: string;
+  label: string;
+  selected: boolean;
+};
+
 export function getAndroidStatus(): AndroidStatus | null {
   try {
     const raw = window.WalzAndroid?.getStatusJson?.();
@@ -48,6 +56,27 @@ export function getAndroidStatus(): AndroidStatus | null {
     return JSON.parse(raw) as AndroidStatus;
   } catch {
     return null;
+  }
+}
+
+export function getPackagesList(): PackageItem[] {
+  try {
+    const raw = window.WalzAndroid?.getPackagesJson?.();
+    if (!raw) return [];
+    return JSON.parse(raw) as PackageItem[];
+  } catch {
+    return [];
+  }
+}
+
+export function setSelectedPackages(pkgs: string[]): boolean {
+  try {
+    const api = window.WalzAndroid;
+    if (!api?.setSelectedPackages) return false;
+    api.setSelectedPackages(JSON.stringify(pkgs));
+    return true;
+  } catch {
+    return false;
   }
 }
 
