@@ -3,18 +3,41 @@ package com.walzpay.listener
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
+import android.widget.EditText
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.walzpay.listener.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+
+    private val knownPackages = linkedMapOf(
+        "id.dana" to "DANA",
+        "id.dana.kasir" to "DANA Kasir",
+        "com.gojek.gopaymerchant" to "GoPay Merchant",
+        "com.gojek.app" to "Gojek",
+        "ovo.id" to "OVO",
+        "com.shopee.id" to "ShopeePay",
+        "com.telkom.mwallet" to "LinkAja",
+        "com.bca" to "BCA Mobile",
+        "id.co.bri.brimo" to "BRImo",
+        "id.co.bri.merchant" to "BRI Merchant",
+        "id.bmri.livin" to "Livin Mandiri",
+        "com.whatsapp" to "WhatsApp",
+        "com.whatsapp.w4b" to "WhatsApp Business",
+        "com.google.android.apps.messaging" to "Messages (SMS)"
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,6 +52,7 @@ class MainActivity : AppCompatActivity() {
         binding.switchEnabled.isChecked = prefs.getBoolean("listener_enabled", false)
 
         refreshUi()
+        refreshPackageLabel()
 
         binding.btnOpenNotificationAccess.setOnClickListener {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
@@ -36,6 +60,10 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnBattery.setOnClickListener {
             requestIgnoreBattery()
+        }
+
+        binding.btnPickPackages.setOnClickListener {
+            showPackagePicker()
         }
 
         binding.btnClearLogs.setOnClickListener {
@@ -67,7 +95,7 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     startService(i)
                 }
-                AppLog.append(this, "Listener ON · FG service start")
+                AppLog.append(this, "Listener ON \u00b7 FG service start")
             } else {
                 stopService(Intent(this, KeepAliveService::class.java))
                 AppLog.append(this, "Listener OFF")
@@ -81,19 +109,109 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshUi()
+        refreshPackageLabel()
+    }
+
+    private fun refreshPackageLabel() {
+        val prefs = getSharedPreferences("walzpay", Context.MODE_PRIVATE)
+        val sel = prefs.getStringSet("selected_packages", null)
+        binding.tvSelectedPackages.text = if (sel.isNullOrEmpty()) {
+            "Default: DANA, GoPay, OVO, Shopee, WA\u2026"
+        } else {
+            "Terpilih ${sel.size} aplikasi: " + sel.take(4).joinToString(", ") +
+                if (sel.size > 4) "\u2026" else ""
+        }
+    }
+
+    private fun showPackagePicker() {
+        val prefs = getSharedPreferences("walzpay", Context.MODE_PRIVATE)
+        val current = prefs.getStringSet("selected_packages", null)?.toMutableSet()
+            ?: knownPackages.keys.toMutableSet()
+
+        val pm = packageManager
+        val installed = try {
+            pm.getInstalledApplications(PackageManager.GET_META_DATA)
+                .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 }
+                .map {
+                    val label = try {
+                        pm.getApplicationLabel(it).toString()
+                    } catch (_: Exception) {
+                        it.packageName
+                    }
+                    it.packageName to label
+                }
+                .sortedBy { it.second.lowercase() }
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        val all = LinkedHashMap<String, String>()
+        knownPackages.forEach { (k, v) -> all[k] = v }
+        installed.forEach { (pkg, label) ->
+            if (!all.containsKey(pkg)) all[pkg] = label
+        }
+
+        val packages = all.keys.toList()
+        val labels = packages.map { pkg ->
+            val name = all[pkg] ?: pkg
+            "$name\n$pkg"
+        }.toTypedArray()
+        val checked = packages.map { current.contains(it) }.toBooleanArray()
+
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Pilih sumber notifikasi")
+
+        val search = EditText(this).apply {
+            hint = "Cari aplikasi\u2026"
+            setPadding(48, 24, 48, 24)
+        }
+        builder.setView(search)
+
+        builder.setMultiChoiceItems(labels, checked) { _, which, isChecked ->
+            val pkg = packages[which]
+            if (isChecked) current.add(pkg) else current.remove(pkg)
+        }
+        builder.setPositiveButton("Simpan") { _, _ ->
+            prefs.edit().putStringSet("selected_packages", current).apply()
+            refreshPackageLabel()
+            Toast.makeText(this, "Sumber disimpan (${current.size})", Toast.LENGTH_SHORT).show()
+        }
+        builder.setNegativeButton("Batal", null)
+        builder.setNeutralButton("Reset default") { _, _ ->
+            prefs.edit().remove("selected_packages").apply()
+            refreshPackageLabel()
+            Toast.makeText(this, "Kembali ke default", Toast.LENGTH_SHORT).show()
+        }
+
+        val dialog = builder.create()
+        dialog.show()
+
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val q = s?.toString()?.trim()?.lowercase() ?: ""
+                val listView = dialog.listView ?: return
+                for (i in packages.indices) {
+                    val match = q.isEmpty() ||
+                        labels[i].lowercase().contains(q) ||
+                        packages[i].lowercase().contains(q)
+                }
+            }
+        })
     }
 
     private fun refreshUi() {
         binding.tvPermissionStatus.text = if (isNotificationServiceEnabled()) {
-            "✅ Akses notifikasi: AKTIF"
+            "\u2705 Akses notifikasi: AKTIF"
         } else {
-            "❌ Akses notifikasi: belum diizinkan"
+            "\u274c Akses notifikasi: belum diizinkan"
         }
 
         binding.tvBatteryStatus.text = if (isIgnoringBattery()) {
-            "✅ Baterai: tanpa optimasi"
+            "\u2705 Baterai: tanpa optimasi"
         } else {
-            "⚠️ Baterai: masih dioptimasi sistem"
+            "\u26a0\ufe0f Baterai: masih dioptimasi sistem"
         }
 
         binding.tvLogs.text = AppLog.read(this)
