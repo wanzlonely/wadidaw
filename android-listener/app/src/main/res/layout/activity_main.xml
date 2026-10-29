@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/walz_bg"
@@ -12,66 +11,34 @@
         android:orientation="vertical"
         android:padding="20dp">
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingBottom="8dp">
+            android:text="Listener & Permission"
+            android:textColor="@color/walz_text"
+            android:textSize="22sp"
+            android:textStyle="bold" />
 
-            <ImageView
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:contentDescription="@string/app_name"
-                android:src="@drawable/ic_launcher_foreground" />
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="WALZPAY"
-                    android:textColor="@color/walz_text"
-                    android:textSize="22sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/app_subtitle"
-                    android:textColor="@color/walz_muted"
-                    android:textSize="12sp" />
-            </LinearLayout>
-        </LinearLayout>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingBottom="12dp"
+            android:text="Izin native agar monitoring notifikasi stabil"
+            android:textColor="@color/walz_muted"
+            android:textSize="12sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
             android:padding="16dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingBottom="8dp"
-                android:text="Status sistem"
-                android:textColor="@color/walz_muted"
-                android:textSize="12sp"
-                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/tvPermissionStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingBottom="4dp"
-                android:text="Cek status izin..."
                 android:textColor="@color/walz_text"
                 android:textSize="14sp" />
 
@@ -80,7 +47,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingBottom="4dp"
-                android:text="Cek baterai..."
                 android:textColor="@color/walz_text"
                 android:textSize="14sp" />
 
@@ -88,26 +54,24 @@
                 android:id="@+id/tvShizukuStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Shizuku: ..."
+                android:paddingBottom="4dp"
+                android:textColor="@color/walz_muted"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/tvOverlayStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:textColor="@color/walz_muted"
                 android:textSize="13sp" />
         </LinearLayout>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:layout_marginBottom="8dp"
-            android:text="Izin dan optimasi"
-            android:textColor="@color/walz_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
 
         <Button
             android:id="@+id/btnOpenNotificationAccess"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="1. Izinkan akses notifikasi" />
+            android:layout_marginTop="12dp"
+            android:text="1. Akses notifikasi" />
 
         <Button
             android:id="@+id/btnBattery"
@@ -121,101 +85,71 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="3. Autostart (Xiaomi/OPPO/Vivo)" />
+            android:text="3. Autostart" />
+
+        <Button
+            android:id="@+id/btnOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="4. Tampil di atas app lain" />
 
         <Button
             android:id="@+id/btnShizuku"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="4. Izinkan Shizuku (opsional)" />
+            android:text="5. Shizuku (opsional)" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
+            android:layout_marginTop="16dp"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
             android:padding="16dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingBottom="10dp"
-                android:text="Koneksi website"
-                android:textColor="@color/walz_muted"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Webhook URL"
-                android:textColor="@color/walz_muted"
-                android:textSize="12sp" />
 
             <EditText
                 android:id="@+id/etWebhookUrl"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
                 android:background="@drawable/bg_input"
-                android:hint="https://domain.vercel.app/api/webhook"
+                android:hint="Webhook URL"
                 android:inputType="textUri"
                 android:padding="12dp"
                 android:textColor="@color/walz_text"
-                android:textColorHint="@color/walz_muted"
-                android:textSize="14sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="API Key (wajib dari Setel website)"
-                android:textColor="@color/walz_muted"
-                android:textSize="12sp" />
+                android:textColorHint="@color/walz_muted" />
 
             <EditText
                 android:id="@+id/etApiKey"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="8dp"
                 android:background="@drawable/bg_input"
-                android:fontFamily="monospace"
-                android:hint="API key merchant"
+                android:hint="API Key"
                 android:inputType="textPassword"
                 android:padding="12dp"
                 android:textColor="@color/walz_text"
-                android:textColorHint="@color/walz_muted"
-                android:textSize="14sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Secret (opsional)"
-                android:textColor="@color/walz_muted"
-                android:textSize="12sp" />
+                android:textColorHint="@color/walz_muted" />
 
             <EditText
                 android:id="@+id/etSecret"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="8dp"
                 android:background="@drawable/bg_input"
-                android:hint="WEBHOOK_SECRET"
+                android:hint="Secret opsional"
                 android:inputType="textPassword"
                 android:padding="12dp"
                 android:textColor="@color/walz_text"
-                android:textColorHint="@color/walz_muted"
-                android:textSize="14sp" />
+                android:textColorHint="@color/walz_muted" />
         </LinearLayout>
 
         <Button
             android:id="@+id/btnPickPackages"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             android:text="Pilih sumber notifikasi" />
 
         <TextView
@@ -223,31 +157,22 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="6dp"
-            android:text="Default: DANA, GoPay, OVO, Shopee, WA"
             android:textColor="@color/walz_muted"
             android:textSize="12sp" />
 
-        <LinearLayout
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switchEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:background="@drawable/bg_card"
-            android:orientation="vertical"
-            android:padding="12dp">
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switchEnabled"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Aktifkan Listener"
-                android:textColor="@color/walz_text" />
-        </LinearLayout>
+            android:text="Aktifkan Listener"
+            android:textColor="@color/walz_text" />
 
         <Button
             android:id="@+id/btnSave"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             android:text="Simpan pengaturan" />
 
         <Button
@@ -257,33 +182,17 @@
             android:layout_marginTop="8dp"
             android:text="Bersihkan log" />
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/tvLogs"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:layout_marginBottom="24dp"
             android:background="@drawable/bg_card"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingBottom="8dp"
-                android:text="Log lokal"
-                android:textColor="@color/walz_muted"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvLogs"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:fontFamily="monospace"
-                android:text="Belum ada log"
-                android:textColor="@color/walz_text"
-                android:textSize="11sp" />
-        </LinearLayout>
-
+            android:fontFamily="monospace"
+            android:padding="12dp"
+            android:text="Log"
+            android:textColor="@color/walz_text"
+            android:textSize="11sp" />
     </LinearLayout>
 </ScrollView>
