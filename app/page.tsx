@@ -8,7 +8,7 @@ export default function HomePage() {
   const [redisOk, setRedisOk] = useState<boolean | null>(null);
 
   return (
-    <Shell active="/" redisOk={redisOk} subtitle="Dashboard QRIS">
+    <Shell active="/" redisOk={redisOk} subtitle="Dashboard pembayaran QRIS">
       <Dashboard onRedis={setRedisOk} />
     </Shell>
   );

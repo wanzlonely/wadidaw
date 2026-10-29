@@ -3,7 +3,7 @@ import { OrdersClient } from "@/components/OrdersClient";
 
 export default function PesananPage() {
   return (
-    <Shell active="/pesanan" subtitle="Buat QRIS dinamis">
+    <Shell active="/pesanan" subtitle="Buat pesanan QRIS">
       <OrdersClient />
     </Shell>
   );
