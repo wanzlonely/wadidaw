@@ -53,6 +53,8 @@ export async function POST(req: NextRequest) {
     note: body.note != null ? String(body.note) : null,
     expiresInMinutes:
       body.expiresInMinutes != null ? Number(body.expiresInMinutes) : 60,
+    // default true di store; kirim dynamic:false jika ingin static legacy
+    dynamic: body.dynamic === false ? false : true,
   });
 
   return NextResponse.json({ ok: true, order }, { status: 201 });
