@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MERCHANTS } from "@/lib/merchants";
 import { decodeQrisFromImage } from "@/lib/decode-qris-image";
 import { isLikelyQris, parseQrisMeta } from "@/lib/qris-convert";
 
@@ -9,8 +8,10 @@ type Settings = {
   displayName: string;
   apiKey: string;
   webhookSecret: string;
-  feeType: "none" | "fixed" | "percent";
+  feeType: "none" | "fixed" | "percent" | "random";
   feeValue: number;
+  feeMin: number;
+  feeMax: number;
   defaultExpiryMinutes: number;
   enabledMerchants: string[];
   hasPassword: boolean;
@@ -57,6 +58,8 @@ export function ProfileClient() {
     setS({
       ...sData.settings,
       enabledMerchants: sData.settings.enabledMerchants ?? [],
+      feeMin: sData.settings.feeMin ?? 1,
+      feeMax: sData.settings.feeMax ?? 99,
     });
     setTemplates(qData.items ?? []);
   }, []);
@@ -137,6 +140,8 @@ export function ProfileClient() {
         webhookSecret: s.webhookSecret,
         feeType: s.feeType,
         feeValue: s.feeValue,
+        feeMin: s.feeMin,
+        feeMax: s.feeMax,
         defaultExpiryMinutes: s.defaultExpiryMinutes,
         enabledMerchants: s.enabledMerchants,
       }),
@@ -150,16 +155,10 @@ export function ProfileClient() {
     setS({
       ...data.settings,
       enabledMerchants: data.settings.enabledMerchants ?? [],
+      feeMin: data.settings.feeMin ?? 1,
+      feeMax: data.settings.feeMax ?? 99,
     });
     setMsg("Pengaturan disimpan");
-  }
-
-  function toggleMerchant(id: string) {
-    if (!s) return;
-    const set = new Set(s.enabledMerchants);
-    if (set.has(id)) set.delete(id);
-    else set.add(id);
-    setS({ ...s, enabledMerchants: Array.from(set) });
   }
 
   async function rotateKey() {
@@ -220,7 +219,7 @@ export function ProfileClient() {
   if (!s) {
     return (
       <section className="glass">
-        <p className="muted">{err || "Memuat…"}</p>
+        <p className="muted">{err || "Memuat\u2026"}</p>
       </section>
     );
   }
@@ -239,9 +238,9 @@ export function ProfileClient() {
       ) : null}
 
       <section className="glass">
-        <h2>QRIS statis · maks. 3</h2>
+        <h2>QRIS statis \u00b7 maks. 3</h2>
         <p className="muted" style={{ marginBottom: 12 }}>
-          Upload foto QRIS merchant. String & info dibaca otomatis.
+          Upload foto QRIS dari galeri. String & info dibaca otomatis.
         </p>
 
         {templates.map((t) => (
@@ -252,7 +251,7 @@ export function ProfileClient() {
               </div>
               <p className="muted">
                 {t.merchantName}
-                {t.merchantCity ? ` · ${t.merchantCity}` : ""}
+                {t.merchantCity ? ` \u00b7 ${t.merchantCity}` : ""}
               </p>
             </div>
             <button
@@ -272,7 +271,6 @@ export function ProfileClient() {
               ref={fileRef}
               type="file"
               accept="image/*"
-              capture="environment"
               style={{ display: "none" }}
               onChange={(e) => onPickImage(e.target.files?.[0] ?? null)}
             />
@@ -282,7 +280,7 @@ export function ProfileClient() {
               disabled={scanning || busy}
               onClick={() => fileRef.current?.click()}
             >
-              {scanning ? "Membaca QR…" : "Upload gambar QRIS"}
+              {scanning ? "Membaca QR\u2026" : "Upload gambar QRIS"}
             </button>
 
             {preview ? (
@@ -290,7 +288,7 @@ export function ProfileClient() {
                 <p style={{ fontWeight: 600, color: "var(--ink)" }}>
                   {preview.merchantName}
                 </p>
-                <p className="muted">{preview.merchantCity || "—"}</p>
+                <p className="muted">{preview.merchantCity || "\u2014"}</p>
                 <p
                   className="muted"
                   style={{
@@ -300,7 +298,7 @@ export function ProfileClient() {
                     marginTop: 8,
                   }}
                 >
-                  {preview.qrisString.slice(0, 80)}…
+                  {preview.qrisString.slice(0, 80)}\u2026
                 </p>
                 <button
                   type="button"
@@ -331,40 +329,17 @@ export function ProfileClient() {
 
       <section className="glass">
         <h2>Sumber notifikasi</h2>
-        <p className="muted" style={{ marginBottom: 10 }}>
-          Pilih aplikasi di HP yang boleh dikirim ke webhook.
+        <p className="muted" style={{ marginBottom: 8 }}>
+          Pilih aplikasi sumber notifikasi langsung di aplikasi listener Android
+          (tombol <strong style={{ color: "var(--ink)" }}>Pilih sumber notifikasi</strong>).
+          Daftar aplikasi diambil dari perangkat HP Anda.
         </p>
-        {MERCHANTS.map((m) => (
-          <label key={m.id} className="check-row">
-            <input
-              type="checkbox"
-              checked={s.enabledMerchants.includes(m.id)}
-              onChange={() => toggleMerchant(m.id)}
-            />
-            <span>
-              <strong style={{ color: "var(--ink)" }}>{m.name}</strong>
-              <br />
-              <span className="muted" style={{ fontSize: "0.75rem" }}>
-                {m.description} · {m.packages[0]}
-              </span>
-            </span>
-          </label>
-        ))}
-        <button
-          type="button"
-          className="btn btn-block"
-          style={{ marginTop: 12 }}
-          disabled={busy}
-          onClick={save}
-        >
-          Simpan sumber notifikasi
-        </button>
       </section>
 
       <section className="glass">
         <h2>Biaya & masa berlaku</h2>
         <label className="muted" style={{ display: "block", marginTop: 8 }}>
-          Biaya admin default
+          Mode biaya admin
         </label>
         <select
           className="input"
@@ -377,11 +352,40 @@ export function ProfileClient() {
             })
           }
         >
-          <option value="none">Tanpa biaya</option>
+          <option value="random">Acak (anti-collision, disarankan)</option>
           <option value="fixed">Fixed (Rp)</option>
           <option value="percent">Persen (%)</option>
+          <option value="none">Tanpa biaya ekstra</option>
         </select>
-        {s.feeType !== "none" ? (
+        {s.feeType === "random" ? (
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <div style={{ flex: 1 }}>
+              <label className="muted" style={{ fontSize: 12 }}>Min (Rp)</label>
+              <input
+                className="input"
+                style={{ width: "100%", marginTop: 4 }}
+                type="number"
+                value={s.feeMin ?? 1}
+                onChange={(e) =>
+                  setS({ ...s, feeMin: Math.max(0, Number(e.target.value) || 0) })
+                }
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="muted" style={{ fontSize: 12 }}>Max (Rp)</label>
+              <input
+                className="input"
+                style={{ width: "100%", marginTop: 4 }}
+                type="number"
+                value={s.feeMax ?? 99}
+                onChange={(e) =>
+                  setS({ ...s, feeMax: Math.max(0, Number(e.target.value) || 0) })
+                }
+              />
+            </div>
+          </div>
+        ) : null}
+        {s.feeType === "fixed" || s.feeType === "percent" ? (
           <input
             className="input"
             style={{ width: "100%", marginTop: 8 }}
@@ -469,7 +473,7 @@ export function ProfileClient() {
         <input
           className="input"
           style={{ width: "100%", marginTop: 4 }}
-          placeholder="Opsional · samakan dengan app listener"
+          placeholder="Opsional \u00b7 samakan dengan app listener"
           value={s.webhookSecret}
           onChange={(e) => setS({ ...s, webhookSecret: e.target.value })}
         />
