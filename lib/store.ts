@@ -1,5 +1,6 @@
 import { getRedis, KEYS } from "./redis";
-import { allocateAdminFee, buildTotalAmount } from "./unique-code";
+import { K } from "./tenant";
+import { allocateAdminFee } from "./unique-code";
 
 export type PaymentEvent = {
   id: string;
@@ -98,19 +99,19 @@ export async function addLog(
     message,
     payload,
   };
-  await redis.lpush(KEYS.logs, JSON.stringify(row));
-  await redis.ltrim(KEYS.logs, 0, MAX_LOGS - 1);
+  await redis.lpush(K().logs, JSON.stringify(row));
+  await redis.ltrim(K().logs, 0, MAX_LOGS - 1);
 }
 
 export async function listLogs(): Promise<DebugLog[]> {
   const redis = getRedis();
-  const raw = await redis.lrange(KEYS.logs, 0, 199);
+  const raw = await redis.lrange(K().logs, 0, 199);
   return raw.map((x) => parseRow<DebugLog>(x));
 }
 
 export async function clearLogs() {
   const redis = getRedis();
-  await redis.del(KEYS.logs);
+  await redis.del(K().logs);
 }
 
 export async function isDuplicatePayment(
@@ -118,7 +119,7 @@ export async function isDuplicatePayment(
   packageName?: string | null
 ): Promise<boolean> {
   const redis = getRedis();
-  const key = `${KEYS.dedup}:${packageName || "any"}:${amount}`;
+  const key = `${K().dedup}:${packageName || "any"}:${amount}`;
   const exists = await redis.get(key);
   if (exists) return true;
   await redis.set(key, "1", { ex: DEDUP_TTL_SEC });
@@ -127,7 +128,7 @@ export async function isDuplicatePayment(
 
 async function loadOrders(): Promise<Order[]> {
   const redis = getRedis();
-  const raw = await redis.lrange(KEYS.orders, 0, MAX_ORDERS - 1);
+  const raw = await redis.lrange(K().orders, 0, MAX_ORDERS - 1);
   return raw.map((x) => {
     const o = parseRow<
       Order & {
@@ -168,7 +169,7 @@ async function takenTotalsAndCodes(): Promise<{
 
 export async function sweepExpiredOrders(): Promise<number> {
   const redis = getRedis();
-  const raw = await redis.lrange(KEYS.orders, 0, MAX_ORDERS - 1);
+  const raw = await redis.lrange(K().orders, 0, MAX_ORDERS - 1);
   const now = Date.now();
   let n = 0;
   for (let i = 0; i < raw.length; i++) {
@@ -177,7 +178,7 @@ export async function sweepExpiredOrders(): Promise<number> {
     if (!item.expiresAt) continue;
     if (new Date(item.expiresAt).getTime() >= now) continue;
     item.status = "expired";
-    await redis.lset(KEYS.orders, i, JSON.stringify(item));
+    await redis.lset(K().orders, i, JSON.stringify(item));
     n++;
   }
   return n;
@@ -246,8 +247,8 @@ export async function createOrder(input: {
     adminFee: finalAdmin,
   };
 
-  await redis.lpush(KEYS.orders, JSON.stringify(row));
-  await redis.ltrim(KEYS.orders, 0, MAX_ORDERS - 1);
+  await redis.lpush(K().orders, JSON.stringify(row));
+  await redis.ltrim(K().orders, 0, MAX_ORDERS - 1);
   await addLog(
     "info",
     mode === "dynamic"
@@ -276,12 +277,12 @@ export async function getOrderByToken(token: string): Promise<Order | null> {
 
 export async function cancelOrder(id: string): Promise<Order | null> {
   const redis = getRedis();
-  const raw = await redis.lrange(KEYS.orders, 0, MAX_ORDERS - 1);
+  const raw = await redis.lrange(K().orders, 0, MAX_ORDERS - 1);
   for (let i = 0; i < raw.length; i++) {
     const item = parseRow<Order>(raw[i]);
     if (item.id === id && item.status === "pending") {
       item.status = "cancelled";
-      await redis.lset(KEYS.orders, i, JSON.stringify(item));
+      await redis.lset(K().orders, i, JSON.stringify(item));
       await addLog("info", `Order cancelled ${id}`);
       return item;
     }
@@ -294,7 +295,7 @@ export async function matchPendingOrder(
   paymentId: string
 ): Promise<Order | null> {
   const redis = getRedis();
-  const raw = await redis.lrange(KEYS.orders, 0, MAX_ORDERS - 1);
+  const raw = await redis.lrange(K().orders, 0, MAX_ORDERS - 1);
   const now = Date.now();
 
   for (let i = raw.length - 1; i >= 0; i--) {
@@ -314,14 +315,14 @@ export async function matchPendingOrder(
 
     if (item.expiresAt && new Date(item.expiresAt).getTime() < now) {
       item.status = "expired";
-      await redis.lset(KEYS.orders, i, JSON.stringify(item));
+      await redis.lset(K().orders, i, JSON.stringify(item));
       continue;
     }
 
     item.status = "success";
     item.paidAt = new Date().toISOString();
     item.matchedPaymentId = paymentId;
-    await redis.lset(KEYS.orders, i, JSON.stringify(item));
+    await redis.lset(K().orders, i, JSON.stringify(item));
     await addLog("info", `Order matched → success ${item.id}`, {
       orderId: item.id,
       paymentId,
@@ -330,7 +331,7 @@ export async function matchPendingOrder(
     });
     try {
       await redis.set(
-        KEYS.live,
+        K().live,
         JSON.stringify({
           type: "order_paid",
           orderId: item.id,
@@ -356,8 +357,8 @@ export async function addPayment(
     id: await nextId("pay"),
     receivedAt: new Date().toISOString(),
   };
-  await redis.lpush(KEYS.payments, JSON.stringify(row));
-  await redis.ltrim(KEYS.payments, 0, MAX_PAYMENTS - 1);
+  await redis.lpush(K().payments, JSON.stringify(row));
+  await redis.ltrim(K().payments, 0, MAX_PAYMENTS - 1);
   await addLog("info", `Payment Rp${row.amount} · ${row.merchantId}`, {
     id: row.id,
     amount: row.amount,
@@ -365,7 +366,7 @@ export async function addPayment(
   });
   try {
     await redis.set(
-      KEYS.live,
+      K().live,
       JSON.stringify({
         type: "payment",
         id: row.id,
@@ -386,12 +387,12 @@ export async function updatePaymentForwardStatus(
   status: PaymentEvent["forwardStatus"]
 ) {
   const redis = getRedis();
-  const raw = await redis.lrange(KEYS.payments, 0, 49);
+  const raw = await redis.lrange(K().payments, 0, 49);
   for (let i = 0; i < raw.length; i++) {
     const item = parseRow<PaymentEvent>(raw[i]);
     if (item.id === id) {
       item.forwardStatus = status;
-      await redis.lset(KEYS.payments, i, JSON.stringify(item));
+      await redis.lset(K().payments, i, JSON.stringify(item));
       break;
     }
   }
@@ -402,12 +403,12 @@ export async function attachMatchedOrder(
   orderId: string
 ) {
   const redis = getRedis();
-  const raw = await redis.lrange(KEYS.payments, 0, 49);
+  const raw = await redis.lrange(K().payments, 0, 49);
   for (let i = 0; i < raw.length; i++) {
     const item = parseRow<PaymentEvent>(raw[i]);
     if (item.id === paymentId) {
       item.matchedOrderId = orderId;
-      await redis.lset(KEYS.payments, i, JSON.stringify(item));
+      await redis.lset(K().payments, i, JSON.stringify(item));
       break;
     }
   }
@@ -415,13 +416,13 @@ export async function attachMatchedOrder(
 
 export async function listPayments(): Promise<PaymentEvent[]> {
   const redis = getRedis();
-  const raw = await redis.lrange(KEYS.payments, 0, 499);
+  const raw = await redis.lrange(K().payments, 0, 499);
   return raw.map((x) => parseRow<PaymentEvent>(x));
 }
 
 export async function clearPayments() {
   const redis = getRedis();
-  await redis.del(KEYS.payments);
+  await redis.del(K().payments);
   await addLog("info", "Payments cleared");
 }
 
@@ -451,7 +452,7 @@ export async function getStats() {
 
 export async function getLiveSnapshot() {
   const redis = getRedis();
-  const live = await redis.get(KEYS.live);
+  const live = await redis.get(K().live);
   const payments = await listPayments();
   const pending = (await listOrders("pending")).slice(0, 20);
   return {
@@ -468,7 +469,7 @@ export async function getLiveSnapshot() {
 
 export async function listForwards(): Promise<ForwardTarget[]> {
   const redis = getRedis();
-  const raw = await redis.get(KEYS.forwards);
+  const raw = await redis.get(K().forwards);
   if (!raw) return [];
   if (typeof raw === "string") return JSON.parse(raw) as ForwardTarget[];
   return raw as ForwardTarget[];
@@ -476,7 +477,7 @@ export async function listForwards(): Promise<ForwardTarget[]> {
 
 async function saveForwards(list: ForwardTarget[]) {
   const redis = getRedis();
-  await redis.set(KEYS.forwards, JSON.stringify(list));
+  await redis.set(K().forwards, JSON.stringify(list));
 }
 
 export async function addForward(url: string): Promise<ForwardTarget> {
@@ -509,7 +510,7 @@ export async function setForwardEnabled(id: string, enabled: boolean) {
 
 export async function getServiceActive(): Promise<boolean> {
   const redis = getRedis();
-  const v = await redis.get(KEYS.service);
+  const v = await redis.get(K().service);
   if (v === null || v === undefined) return true;
   if (typeof v === "boolean") return v;
   return String(v) !== "0" && String(v) !== "false";
@@ -517,7 +518,7 @@ export async function getServiceActive(): Promise<boolean> {
 
 export async function setServiceActive(v: boolean) {
   const redis = getRedis();
-  await redis.set(KEYS.service, v ? "1" : "0");
+  await redis.set(K().service, v ? "1" : "0");
   await addLog("info", v ? "Service activated" : "Service paused");
 }
 
