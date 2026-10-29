@@ -30,7 +30,6 @@ type StaticQris = {
   merchantCity: string;
 };
 
-/** High-contrast QR with error correction M for reliable e-wallet scans */
 function qrImageUrl(payload: string) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&ecc=M&data=${encodeURIComponent(payload)}`;
 }
@@ -39,6 +38,21 @@ function remainLabel(sec: number) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function effectiveStatus(o: Order): string {
+  if (o.status === "pending" && o.expiresAt) {
+    if (new Date(o.expiresAt).getTime() <= Date.now()) return "expired";
+  }
+  return o.status;
+}
+
+function statusLabel(st: string) {
+  if (st === "success") return "Sukses";
+  if (st === "pending") return "Menunggu";
+  if (st === "expired") return "Kedaluwarsa";
+  if (st === "cancelled") return "Dibatalkan";
+  return st;
 }
 
 export function OrdersClient() {
@@ -79,6 +93,9 @@ export function OrdersClient() {
         const found = (allData.orders ?? []).find((o: Order) => o.id === id);
         if (found?.status === "success") {
           setActive({ ...found });
+        } else if (found) {
+          // cancelled / expired — still show briefly with real status
+          setActive({ ...found });
         } else {
           setActive(null);
           activeIdRef.current = null;
@@ -104,8 +121,9 @@ export function OrdersClient() {
       );
       if (left <= 0) {
         setRemainSec(null);
-        setActive(null);
-        activeIdRef.current = null;
+        setActive((prev) =>
+          prev ? { ...prev, status: "expired" } : null
+        );
         load();
         return;
       }
@@ -181,8 +199,9 @@ export function OrdersClient() {
     setTimeout(() => {
       setCancelling(false);
       if (activeIdRef.current === id) {
-        setActive(null);
-        activeIdRef.current = null;
+        setActive((prev) =>
+          prev && prev.id === id ? { ...prev, status: "cancelled" } : null
+        );
       }
       load();
     }, 420);
@@ -194,10 +213,11 @@ export function OrdersClient() {
     return new Date(o.expiresAt).getTime() > Date.now();
   });
 
-  const showOrder =
-    active && (active.status === "pending" || active.status === "success")
-      ? active
-      : null;
+  const showOrder = active
+    ? active
+    : null;
+
+  const showSt = showOrder ? effectiveStatus(showOrder) : null;
 
   return (
     <>
@@ -247,17 +267,19 @@ export function OrdersClient() {
         </section>
       )}
 
-      {showOrder ? (
+      {showOrder && showSt ? (
         <section
-          className={`glass card-v2 qr-card ${cancelling ? "anim-cancel" : ""} ${showOrder.status === "success" ? "anim-success" : "anim-pop"}`}
+          className={`glass card-v2 qr-card ${cancelling ? "anim-cancel" : ""} ${showSt === "success" ? "anim-success" : "anim-pop"}`}
           style={{
             borderColor:
-              showOrder.status === "success"
+              showSt === "success"
                 ? "rgba(126,224,200,0.45)"
-                : undefined,
+                : showSt === "expired" || showSt === "cancelled"
+                  ? "rgba(255,143,163,0.35)"
+                  : undefined,
           }}
         >
-          {showOrder.status === "success" ? (
+          {showSt === "success" ? (
             <>
               <div className="pay-success-block">
                 <div className="pay-check">✓</div>
@@ -265,8 +287,13 @@ export function OrdersClient() {
                   {formatRp(showOrder.totalAmount ?? showOrder.amount)}
                 </p>
                 <p className="muted">Pembayaran berhasil</p>
+                <span className="status-chip status-success" style={{ marginTop: 8 }}>
+                  Sukses
+                </span>
                 {showOrder.paidAt ? (
-                  <p className="muted">{formatTime(showOrder.paidAt)}</p>
+                  <p className="muted" style={{ marginTop: 6 }}>
+                    {formatTime(showOrder.paidAt)}
+                  </p>
                 ) : null}
               </div>
               <button
@@ -278,6 +305,35 @@ export function OrdersClient() {
                 }}
               >
                 Transaksi baru
+              </button>
+            </>
+          ) : showSt === "expired" || showSt === "cancelled" ? (
+            <>
+              <div className="pay-success-block">
+                <p className="amount" style={{ marginTop: 4 }}>
+                  {formatRp(showOrder.totalAmount ?? showOrder.amount)}
+                </p>
+                <span
+                  className={`status-chip status-${showSt}`}
+                  style={{ marginTop: 10 }}
+                >
+                  {statusLabel(showSt)}
+                </span>
+                <p className="muted" style={{ marginTop: 10 }}>
+                  {showSt === "expired"
+                    ? "Waktu pembayaran habis"
+                    : "Transaksi dibatalkan"}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-block btn-ghost btn-press"
+                onClick={() => {
+                  setActive(null);
+                  activeIdRef.current = null;
+                }}
+              >
+                Tutup
               </button>
             </>
           ) : (
@@ -313,7 +369,9 @@ export function OrdersClient() {
                     Berlaku {remainLabel(remainSec)}
                   </span>
                 ) : null}
-                <span className="status-chip pending">MENUNGGU</span>
+                <span className={`status-chip status-${showSt}`}>
+                  {statusLabel(showSt)}
+                </span>
               </div>
 
               <div className="pay-waiting" style={{ marginTop: 14 }}>
@@ -338,41 +396,50 @@ export function OrdersClient() {
       {pending.length > 0 ? (
         <section className="glass card-v2 anim-rise">
           <h2>Antrian · {pending.length}</h2>
-          {pending.map((o, i) => (
-            <div
-              key={o.id}
-              className="list-item anim-rise"
-              style={{ marginTop: 10, animationDelay: `${Math.min(i, 6) * 0.04}s` }}
-            >
-              <div style={{ flex: 1 }}>
-                <div className="amount sm">
-                  {formatRp(o.totalAmount ?? o.amount)}
-                </div>
-                <p className="muted">
-                  {o.expiresAt ? `Exp ${formatTime(o.expiresAt)}` : "—"}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="btn btn-ghost btn-press"
-                style={{ marginTop: 0, fontSize: 13 }}
-                onClick={() => {
-                  activeIdRef.current = o.id;
-                  setActive(o);
+          {pending.map((o, i) => {
+            const st = effectiveStatus(o);
+            return (
+              <div
+                key={o.id}
+                className="list-item anim-rise"
+                style={{
+                  marginTop: 10,
+                  animationDelay: `${Math.min(i, 6) * 0.04}s`,
                 }}
               >
-                Lihat
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost btn-press"
-                style={{ marginTop: 0, fontSize: 13 }}
-                onClick={() => cancel(o.id)}
-              >
-                Batal
-              </button>
-            </div>
-          ))}
+                <div style={{ flex: 1 }}>
+                  <div className="amount sm">
+                    {formatRp(o.totalAmount ?? o.amount)}
+                  </div>
+                  <p className="muted">
+                    {o.expiresAt ? `Exp ${formatTime(o.expiresAt)}` : "—"}
+                  </p>
+                </div>
+                <span className={`status-chip status-${st}`}>
+                  {statusLabel(st)}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-press"
+                  style={{ marginTop: 0, fontSize: 13 }}
+                  onClick={() => {
+                    activeIdRef.current = o.id;
+                    setActive(o);
+                  }}
+                >
+                  Lihat
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-press"
+                  style={{ marginTop: 0, fontSize: 13 }}
+                  onClick={() => cancel(o.id)}
+                >
+                  Batal
+                </button>
+              </div>
+            );
+          })}
         </section>
       ) : null}
     </>
