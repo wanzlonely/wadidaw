@@ -259,7 +259,10 @@
 }
 
 .profil-hero {
-  text-align: center;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  text-align: center !important;
   padding-top: 22px !important;
   padding-bottom: 18px !important;
 }
@@ -268,7 +271,8 @@
   position: relative;
   width: 72px;
   height: 72px;
-  margin: 0 auto 12px;
+  margin: 0 auto 14px;
+  flex-shrink: 0;
 }
 
 .profil-avatar {
@@ -302,17 +306,25 @@
 }
 
 .profil-name {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: #fff;
+  margin: 0 !important;
+  width: 100%;
+  display: block !important; /* override .card-v2 h2 flex */
+  text-align: center !important;
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  text-transform: none !important;
+  color: #fff !important;
+  line-height: 1.3;
 }
 
 .profil-email {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
+  width: 100%;
+  text-align: center;
   font-size: 0.85rem;
   color: var(--ink-dim);
+  word-break: break-all;
 }
 
 .profil-pills {
@@ -453,4 +465,81 @@
 
 @keyframes spin-ico {
   to { transform: rotate(360deg); }
+}
+
+
+/* —— Sinkron bot guide —— */
+.sync-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+.sync-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: border-color 0.2s, background 0.2s;
+}
+.sync-step:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(110, 182, 255, 0.25);
+}
+.sync-num {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(145deg, #6eb6ff, #8b5cf6);
+  box-shadow: 0 4px 14px rgba(110, 182, 255, 0.35);
+}
+.sync-body {
+  flex: 1;
+  min-width: 0;
+}
+.sync-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.sync-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+.sync-desc code {
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #aed4ff;
+  word-break: break-all;
+}
+.sync-tip {
+  margin-top: 12px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  background: rgba(110, 182, 255, 0.08);
+  border: 1px solid rgba(110, 182, 255, 0.2);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+.sync-tip strong {
+  color: #aed4ff;
+  font-weight: 650;
 }

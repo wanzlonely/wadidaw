@@ -401,20 +401,52 @@ export function ProfileClient() {
         <h2>
           <IconLink size={16} /> Sinkron bot / website
         </h2>
-        <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, marginBottom: 10 }}>
-          1) Bot buat order: <code>POST {origin}/api/orders</code> + header <code>X-Api-Key</code>
-          <br />
-          Body: amount, qrisStaticId, callbackUrl (opsional)
-          <br />
-          2) Tampilkan <code>order.dynamicQris</code> ke pembeli
-          <br />
-          3) App HP pantau notifikasi → webhook → status success
-          <br />
-          4) WALZPAY kirim <code>order.paid</code> ke callbackUrl + Forward URL
+        <p className="muted" style={{ fontSize: 12, marginBottom: 12, lineHeight: 1.45 }}>
+          Alur otomatis dari bot ke QRIS dinamis sampai status sukses.
         </p>
-        <p className="muted" style={{ fontSize: 11 }}>
-          Tambah Forward URL di dashboard jika bot butuh push global (Telegram/WA/custom).
-        </p>
+        <div className="sync-guide">
+          <div className="sync-step">
+            <span className="sync-num">1</span>
+            <div className="sync-body">
+              <p className="sync-title">Bot buat pesanan</p>
+              <p className="sync-desc">
+                <code>POST {origin}/api/orders</code>
+                {" "}dengan header <code>X-Api-Key</code>.
+                Body: <code>amount</code>, opsional <code>qrisStaticId</code>, <code>callbackUrl</code>, <code>reference</code>.
+              </p>
+            </div>
+          </div>
+          <div className="sync-step">
+            <span className="sync-num">2</span>
+            <div className="sync-body">
+              <p className="sync-title">Tampilkan QRIS ke pembeli</p>
+              <p className="sync-desc">
+                Ambil <code>order.dynamicQris</code> dari respons, generate QR, tampilkan ke pelanggan.
+              </p>
+            </div>
+          </div>
+          <div className="sync-step">
+            <span className="sync-num">3</span>
+            <div className="sync-body">
+              <p className="sync-title">App HP deteksi pembayaran</p>
+              <p className="sync-desc">
+                Notifikasi bank/e-wallet masuk → listener kirim ke webhook → order otomatis <strong>success</strong>.
+              </p>
+            </div>
+          </div>
+          <div className="sync-step">
+            <span className="sync-num">4</span>
+            <div className="sync-body">
+              <p className="sync-title">Callback ke bot / website</p>
+              <p className="sync-desc">
+                WALZPAY kirim event <code>order.paid</code> ke <code>callbackUrl</code> pesanan + Forward URL global.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="sync-tip">
+          <strong>Tips:</strong> simpan API key di bot. Tambah Forward URL di dashboard bila butuh push ke Telegram / WhatsApp / custom webhook.
+        </div>
       </section>
     </div>
   );
