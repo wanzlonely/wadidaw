@@ -8,7 +8,62 @@
 }
 .nav-bottom a {
   font-size: 10px !important;
-  padding: 8px 2px !important;
+  padding: 8px 2px 6px !important;
+  gap: 4px !important;
+}
+
+.nav-bottom a .ico {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  line-height: 0;
+}
+
+.nav-bottom a .ico svg {
+  width: 20px !important;
+  height: 20px !important;
+  display: block;
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+
+.nav-bottom a.active .ico svg {
+  opacity: 1;
+}
+
+.nav-bottom a .nav-label {
+  line-height: 1.1;
+}
+
+/* Settings gear in topbar */
+.btn-icon-setel {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  text-decoration: none;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.btn-icon-setel svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.btn-icon-setel:active,
+.btn-icon-setel.active {
+  transform: scale(0.94);
+  background: rgba(110, 182, 255, 0.28);
 }
 
 /* —— Session / app entry loader —— */
@@ -139,4 +194,32 @@
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+/* Login password toggle — no emoji */
+.pw-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pw-toggle svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+.pw-field {
+  position: relative;
+}
+.pw-field .input {
+  padding-right: 44px;
+  width: 100%;
 }
