@@ -55,6 +55,17 @@ function statusLabel(st: string) {
   return st;
 }
 
+function IconQr() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01" />
+    </svg>
+  );
+}
+
 export function OrdersClient() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [templates, setTemplates] = useState<StaticQris[]>([]);
@@ -94,7 +105,6 @@ export function OrdersClient() {
         if (found?.status === "success") {
           setActive({ ...found });
         } else if (found) {
-          // cancelled / expired — still show briefly with real status
           setActive({ ...found });
         } else {
           setActive(null);
@@ -213,32 +223,32 @@ export function OrdersClient() {
     return new Date(o.expiresAt).getTime() > Date.now();
   });
 
-  const showOrder = active
-    ? active
-    : null;
-
+  const showOrder = active;
   const showSt = showOrder ? effectiveStatus(showOrder) : null;
 
   return (
-    <>
+    <div className="pesanan-v2">
       {err ? (
         <section className="glass card-v2 anim-shake">
-          <p style={{ color: "var(--rose)" }}>{err}</p>
+          <p style={{ color: "var(--rose)", margin: 0 }}>{err}</p>
         </section>
       ) : null}
 
       {templates.length === 0 ? (
         <section className="glass card-v2 anim-rise">
-          <h2>Siapkan QRIS</h2>
+          <h2 className="sec-title">
+            <IconQr /> Siapkan QRIS
+          </h2>
           <p className="muted">
-            Upload gambar QRIS di halaman{" "}
-            <strong style={{ color: "var(--ink)" }}>Setel</strong> terlebih
+            Upload gambar QRIS di halaman <strong style={{ color: "var(--ink)" }}>Setel</strong> terlebih
             dahulu. Setelah itu cukup masukkan nominal di sini.
           </p>
         </section>
       ) : (
         <section className="glass card-v2 anim-rise">
-          <h2>Buat transaksi</h2>
+          <h2 className="sec-title">
+            <IconQr /> Buat transaksi
+          </h2>
           <p className="muted" style={{ marginBottom: 12 }}>
             {templates[0].merchantName}
             {templates[0].merchantCity
@@ -338,7 +348,9 @@ export function OrdersClient() {
             </>
           ) : (
             <>
-              <h2>QRIS DINAMIS</h2>
+              <h2 className="sec-title" style={{ justifyContent: "center" }}>
+                <IconQr /> QRIS dinamis
+              </h2>
               <p className="amount" style={{ textAlign: "center" }}>
                 {formatRp(showOrder.totalAmount ?? showOrder.amount)}
               </p>
@@ -442,6 +454,6 @@ export function OrdersClient() {
           })}
         </section>
       ) : null}
-    </>
+    </div>
   );
 }
