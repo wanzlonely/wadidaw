@@ -1,66 +1,39 @@
+import Link from "next/link";
 import { Shell } from "@/components/Shell";
 
 export default function PengaturanPage() {
   return (
-    <Shell active="/pengaturan" subtitle="Setup · WA · DANA · arsitektur">
+    <Shell active="/pengaturan" subtitle="Setup · fitur · debug">
       <section className="glass">
-        <h2>Batas website vs QRIS Hook</h2>
-        <p>
-          WALZPAY = dashboard + webhook + Redis + parser (lebih lengkap di sisi
-          server). Membaca notifikasi Android hanya bisa dilakukan app native
-          (QRIS Hook / forwarder). Website tidak bisa menggantikan Notification
-          Listener di OS.
-        </p>
-      </section>
-
-      <section className="glass">
-        <h2>Uji WhatsApp (disarankan dulu)</h2>
-        <p>
-          1. Di Beranda WALZPAY tekan <strong>Uji notifikasi WhatsApp</strong> —
-          cek parser + Redis + suara.
-          <br />
-          2. Untuk notifikasi WA sungguhan dari HP:
-        </p>
+        <h2>Fitur baru</h2>
         <ul className="ul">
           <li>
-            QRIS Hook tidak punya parser WhatsApp bawaan → webhook tidak otomatis
-            untuk package <code>com.whatsapp</code>.
+            <strong>Pesanan</strong> — buat nominal pending; notifikasi nominal sama → auto success
           </li>
           <li>
-            Opsi A: app <strong>Notification Forwarder</strong> / Tasker → POST
-            JSON ke <code>/api/webhook</code> (title, text, packageName).
+            <strong>Toast + notifikasi browser</strong> — alert saat uang masuk (toggle di Beranda)
           </li>
           <li>
-            Opsi B: QRIS Hook Mode Debug → pilih WhatsApp → tangkap payload →
-            kirim ke kami / POST manual untuk rapikan parser.
+            <strong>Grafik 7 hari</strong> — ringkasan nominal per hari di Beranda
           </li>
         </ul>
-        <p className="muted" style={{ marginTop: 8 }}>
-          Contoh body yang diterima:
-        </p>
-        <code className="code">
-          {`{\n  "packageName": "com.whatsapp",\n  "title": "BCA",\n  "text": "Transfer masuk Rp25.000 dari BUDI",\n  "amount": 25000\n}`}
-        </code>
       </section>
 
       <section className="glass">
-        <h2>DANA Bisnis</h2>
+        <h2>Debug log</h2>
+        <p className="muted">Payload webhook mentah & error server.</p>
+        <Link href="/debug" className="btn btn-block" style={{ display: "block", textAlign: "center" }}>
+          Buka Debug
+        </Link>
+      </section>
+
+      <section className="glass">
+        <h2>Website vs listener HP</h2>
         <p>
-          Parser WALZPAY sudah mengenali <code>id.dana</code> / payload mirip
-          QRIS Hook. QRIS Hook publik belum tentu punya merchant DANA — tanpa
-          parser di HP, notifikasi tidak dikirim. Gunakan forwarder atau tunggu /
-          minta parser merchant di QRIS Hook (Mode Debug + Minta dukungan).
+          Dashboard WALZPAY tidak membaca notifikasi Android. Gunakan{" "}
+          <code>android-listener</code>, QRIS Hook, atau Notification Forwarder → POST ke{" "}
+          <code>/api/webhook</code>.
         </p>
-      </section>
-
-      <section className="glass">
-        <h2>Merchant bawaan QRIS Hook</h2>
-        <p>Langsung bisa webhook jika Debug OFF:</p>
-        <ul className="ul">
-          <li>GoPay Merchant</li>
-          <li>BRI Merchant</li>
-          <li>InterActive QRIS</li>
-        </ul>
       </section>
 
       <section className="glass">
@@ -70,12 +43,14 @@ export default function PengaturanPage() {
             <code>POST /api/webhook</code>
           </li>
           <li>
-            <code>POST /api/test</code> · body{" "}
-            <code>{`{ "kind": "whatsapp" | "dana" | "default" }`}</code>
+            <code>POST /api/orders</code> · <code>GET /api/orders</code>
           </li>
           <li>
-            <code>GET /api/payments</code> · <code>/api/health</code> ·{" "}
-            <code>/api/logs</code>
+            <code>GET /api/stats/week</code>
+          </li>
+          <li>
+            <code>POST /api/test</code> ·{" "}
+            <code>{`{ "kind": "whatsapp" | "dana" | "default" }`}</code>
           </li>
         </ul>
       </section>
