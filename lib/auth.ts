@@ -123,11 +123,31 @@ export async function loginUser(input: {
   if (user.a2fEnabled) {
     const otp = randomOtp();
     await redis.set(`${KEYS.a2f}:${session.token}`, otp, { ex: 300 });
-    // Demo: OTP dikembalikan agar bisa dites tanpa SMS/email gateway
     otpPreview = otp;
   }
 
   return { ok: true, session, needA2f: user.a2fEnabled, otpPreview };
+}
+
+export async function changePassword(
+  userId: string,
+  oldPassword: string,
+  newPassword: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (newPassword.length < 6) {
+    return { ok: false, error: "Password baru minimal 6 karakter" };
+  }
+  const users = await loadUsers();
+  const u = users.find((x) => x.id === userId);
+  if (!u) return { ok: false, error: "User tidak ditemukan" };
+  const oldH = await hashPassword(oldPassword);
+  if (oldH !== u.passwordHash) {
+    return { ok: false, error: "Password lama salah" };
+  }
+  u.passwordHash = await hashPassword(newPassword);
+  u.updatedAt = new Date().toISOString();
+  await saveUsers(users);
+  return { ok: true };
 }
 
 export async function verifyA2f(
@@ -198,23 +218,49 @@ export async function getUserById(id: string): Promise<User | null> {
   return users.find((u) => u.id === id) ?? null;
 }
 
-/** Skor perilaku manusia: mouse/touch movement, timing, focus */
-export function scoreHumanBehavior(signals: {
-  moveCount?: number;
-  keyCount?: number;
-  durationMs?: number;
-  focusEvents?: number;
-}): { human: boolean; score: number } {
-  const move = signals.moveCount ?? 0;
-  const keys = signals.keyCount ?? 0;
-  const dur = signals.durationMs ?? 0;
-  const focus = signals.focusEvents ?? 0;
-  let score = 0;
-  if (move >= 3) score += 30;
-  else if (move >= 1) score += 10;
-  if (keys >= 2) score += 25;
-  if (dur >= 1500) score += 25;
-  else if (dur >= 600) score += 10;
-  if (focus >= 1) score += 20;
-  return { human: score >= 50, score };
+/** Captcha challenge: klik + tunggu server-side */
+export async function createCaptcha(): Promise<{ id: string; waitMs: number }> {
+  const id = randomToken(24);
+  const waitMs = 2000;
+  const redis = getRedis();
+  await redis.set(
+    `${KEYS.captcha}:${id}`,
+    JSON.stringify({ createdAt: Date.now(), waitMs, solved: false }),
+    { ex: 120 }
+  );
+  return { id, waitMs };
+}
+
+export async function solveCaptcha(
+  id: string
+): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+  const redis = getRedis();
+  const raw = await redis.get(`${KEYS.captcha}:${id}`);
+  if (!raw) return { ok: false, error: "Captcha kedaluwarsa, muat ulang" };
+  const data =
+    typeof raw === "string"
+      ? (JSON.parse(raw) as { createdAt: number; waitMs: number; solved: boolean })
+      : (raw as { createdAt: number; waitMs: number; solved: boolean });
+  const elapsed = Date.now() - data.createdAt;
+  if (elapsed < data.waitMs) {
+    return {
+      ok: false,
+      error: `Tunggu ${Math.ceil((data.waitMs - elapsed) / 1000)} detik lagi`,
+    };
+  }
+  const token = randomToken(32);
+  await redis.set(`${KEYS.captcha}:ok:${token}`, "1", { ex: 300 });
+  await redis.del(`${KEYS.captcha}:${id}`);
+  return { ok: true, token };
+}
+
+export async function verifyCaptchaToken(
+  token: string | null | undefined
+): Promise<boolean> {
+  if (!token) return false;
+  const redis = getRedis();
+  const v = await redis.get(`${KEYS.captcha}:ok:${token}`);
+  if (!v) return false;
+  await redis.del(`${KEYS.captcha}:ok:${token}`);
+  return true;
 }
