@@ -10,14 +10,35 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Restart setelah boot -->
+    <!-- Restart setelah boot / paket diganti -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
-    <!-- Minta user keluarkan app dari optimasi baterai (sah, user-approved) -->
+    <!-- Baterai + alarm andal -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <!-- Restart / alarm yang lebih andal di Android 12+ -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+    <!-- Daftar semua app untuk picker sumber notifikasi (sideload) -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
+    <!-- Shizuku (opsional — jika app Shizuku terpasang) -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+
+    <queries>
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="id.dana" />
+        <package android:name="id.dana.kasir" />
+        <package android:name="com.gojek.app" />
+        <package android:name="com.gojek.gopaymerchant" />
+        <package android:name="ovo.id" />
+        <package android:name="com.shopee.id" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -38,7 +59,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Inti: baca notifikasi sistem (user harus izinkan di Settings) -->
         <service
             android:name=".PaymentNotificationListener"
             android:exported="true"
@@ -49,7 +69,6 @@
             </intent-filter>
         </service>
 
-        <!-- Foreground sticky agar proses lebih sulit dimatikan OEM -->
         <service
             android:name=".KeepAliveService"
             android:exported="false"
@@ -64,9 +83,24 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".WatchdogReceiver"
+            android:exported="false" />
+
+        <!-- Shizuku provider (opsional) -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
     </application>
 </manifest>
