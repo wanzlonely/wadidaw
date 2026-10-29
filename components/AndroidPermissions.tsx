@@ -7,19 +7,81 @@ import {
   isWalzApp,
   type AndroidStatus,
 } from "@/lib/walz-android";
+import { apiFetch } from "@/lib/client-api";
 import { pushBubble } from "@/components/BubbleToasts";
 
-/**
- * Panel permission native — hanya aktif di APK WebView.
- * Di browser biasa menampilkan petunjuk install app.
- */
-export function AndroidPermissions({ apiKey, webhookUrl, webhookSecret }: {
-  apiKey?: string;
-  webhookUrl?: string;
-  webhookSecret?: string;
-}) {
+type Row = {
+  key: string;
+  title: string;
+  desc: string;
+  okLabel: string;
+  badLabel: string;
+  action: Parameters<typeof androidCall>[0];
+  statusKey?: keyof AndroidStatus;
+  statusFn?: (st: AndroidStatus | null) => boolean;
+};
+
+const ROWS: Row[] = [
+  {
+    key: "notification",
+    title: "Baca notifikasi e-wallet",
+    desc: "Agar WALZPAY bisa mendeteksi transfer masuk dari DANA, GoPay, OVO, dan lainnya.",
+    okLabel: "Sudah aktif",
+    badLabel: "Belum diizinkan",
+    action: "openNotificationAccess",
+    statusKey: "notification",
+  },
+  {
+    key: "push",
+    title: "Notifikasi aplikasi",
+    desc: "Izin menampilkan pemberitahuan dari WALZPAY di HP Anda (bukan membaca notifikasi app lain).",
+    okLabel: "Sudah diizinkan",
+    badLabel: "Belum diizinkan",
+    action: "requestPostNotifications",
+    statusFn: (st) => Boolean(st && (st as AndroidStatus & { push?: boolean }).push),
+  },
+  {
+    key: "battery",
+    title: "Tanpa batasan baterai",
+    desc: "Mencegah sistem mematikan monitoring saat HP hemat daya.",
+    okLabel: "Tanpa optimasi",
+    badLabel: "Masih dibatasi",
+    action: "openBattery",
+    statusKey: "battery",
+  },
+  {
+    key: "autostart",
+    title: "Mulai otomatis",
+    desc: "Menyalakan ulang listener setelah HP di-restart (Xiaomi, OPPO, Vivo, dll).",
+    okLabel: "Sudah diatur",
+    badLabel: "Perlu diatur di HP",
+    action: "openAutostart",
+  },
+  {
+    key: "overlay",
+    title: "Tampil di atas app lain",
+    desc: "Opsional · memungkinkan indikator singkat saat ada pembayaran.",
+    okLabel: "Diizinkan",
+    badLabel: "Belum diizinkan",
+    action: "openOverlay",
+    statusKey: "overlay",
+  },
+  {
+    key: "packages",
+    title: "Sumber notifikasi",
+    desc: "Pilih aplikasi e-wallet yang ingin dipantau. Hanya app yang terpasang di HP.",
+    okLabel: "App dipilih",
+    badLabel: "Belum memilih",
+    action: "openPackagePicker",
+    statusFn: (st) => (st?.packages ?? 0) > 0,
+  },
+];
+
+export function AndroidPermissions() {
   const [inApp, setInApp] = useState(false);
   const [st, setSt] = useState<AndroidStatus | null>(null);
+  const [apiKey, setApiKey] = useState("");
+  const [hook, setHook] = useState("");
 
   const refresh = useCallback(() => {
     const app = isWalzApp();
@@ -29,149 +91,183 @@ export function AndroidPermissions({ apiKey, webhookUrl, webhookSecret }: {
 
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 2500);
+    const t = setInterval(refresh, 2000);
     return () => clearInterval(t);
   }, [refresh]);
 
   useEffect(() => {
-    if (!inApp || !window.WalzAndroid) return;
-    try {
-      if (apiKey) window.WalzAndroid.setApiKey(apiKey);
-      if (webhookUrl) window.WalzAndroid.setWebhookUrl(webhookUrl);
-      if (webhookSecret != null) window.WalzAndroid.setWebhookSecret(webhookSecret);
-    } catch {
-      /* ignore */
+    if (typeof window !== "undefined") {
+      setHook(`${window.location.origin}/api/webhook`);
     }
-  }, [inApp, apiKey, webhookUrl, webhookSecret]);
+    apiFetch("/api/settings")
+      .then(async (r) => {
+        if (!r.ok) return;
+        const d = await r.json();
+        const key = d.settings?.apiKey || "";
+        const secret = d.settings?.webhookSecret || "";
+        setApiKey(key);
+        if (isWalzApp() && window.WalzAndroid) {
+          try {
+            if (key) window.WalzAndroid.setApiKey(key);
+            window.WalzAndroid.setWebhookUrl(
+              `${window.location.origin}/api/webhook`
+            );
+            window.WalzAndroid.setWebhookSecret(secret || "");
+          } catch {
+            /* ignore */
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
-  function run(action: Parameters<typeof androidCall>[0], okMsg: string) {
+  function run(action: Parameters<typeof androidCall>[0], title: string) {
     if (!inApp) {
       pushBubble({
-        title: "Hanya di aplikasi WALZPAY",
-        sub: "Install APK agar izin sistem berfungsi",
+        title: "Buka lewat aplikasi WALZPAY",
+        sub: "Izin sistem hanya tersedia di APK",
         tone: "err",
       });
       return;
     }
     const ok = androidCall(action);
     if (ok) {
-      pushBubble({ title: okMsg, tone: "ok" });
-      setTimeout(refresh, 800);
-    } else {
-      pushBubble({ title: "Gagal memanggil native", tone: "err" });
+      pushBubble({ title, tone: "ok" });
+      setTimeout(refresh, 1000);
     }
   }
 
-  const row = (
-    label: string,
-    status: string,
-    action: Parameters<typeof androidCall>[0],
-    msg: string
-  ) => (
-    <div
-      className="list-item"
-      style={{ marginTop: 10, alignItems: "center", gap: 10 }}
-    >
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 600, color: "var(--ink)" }}>{label}</div>
-        <p className="muted" style={{ margin: 0, fontSize: 12 }}>
-          {status}
-        </p>
-      </div>
-      <button
-        type="button"
-        className="btn btn-primary btn-press"
-        style={{ marginTop: 0, minWidth: 88 }}
-        data-walz-action={action.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, "")}
-        onClick={() => run(action, msg)}
-      >
-        Atur
-      </button>
-    </div>
-  );
+  function isOk(row: Row): boolean | null {
+    if (!st && row.statusKey) return null;
+    if (row.statusFn) return row.statusFn(st);
+    if (row.statusKey && st) return Boolean(st[row.statusKey]);
+    return null;
+  }
+
+  const doneCount = ROWS.filter((r) => isOk(r) === true).length;
+  const listenerOn = Boolean(st?.listener);
 
   return (
-    <section className="glass card-v2 anim-rise">
-      <h2>Izin Android & Listener</h2>
+    <div className="izin-page">
+      <section className="glass card-v2 anim-rise izin-hero">
+        <p className="izin-kicker">Monitoring pembayaran</p>
+        <h2 className="izin-title">Izin Android</h2>
+        <p className="muted izin-lead">
+          Aktifkan izin di bawah agar transfer QRIS terdeteksi otomatis, bahkan
+          saat Anda membuka aplikasi lain.
+        </p>
+        <div className="izin-progress">
+          <div
+            className="izin-progress-bar"
+            style={{ width: `${(doneCount / ROWS.length) * 100}%` }}
+          />
+        </div>
+        <p className="izin-progress-label">
+          {doneCount} dari {ROWS.length} siap
+          {listenerOn ? " · Listener aktif" : ""}
+        </p>
+      </section>
+
       {!inApp ? (
-        <p className="muted">
-          Buka halaman ini dari aplikasi WALZPAY di HP agar tombol di bawah
-          langsung membuka pengaturan sistem (notifikasi, baterai, autostart,
-          sumber notifikasi).
-        </p>
-      ) : (
-        <p className="muted" style={{ marginBottom: 4 }}>
-          Tombol di bawah memanggil izin native di perangkat Anda.
-        </p>
-      )}
-
-      {row(
-        "Akses notifikasi",
-        st?.notification ? "AKTIF" : "Belum diizinkan",
-        "openNotificationAccess",
-        "Buka pengaturan akses notifikasi"
-      )}
-      {row(
-        "Tanpa batasan baterai",
-        st?.battery ? "Tanpa optimasi" : "Masih dioptimasi",
-        "openBattery",
-        "Buka pengaturan baterai"
-      )}
-      {row(
-        "Autostart",
-        "OEM (Xiaomi/OPPO/Vivo/…)",
-        "openAutostart",
-        "Buka pengaturan autostart"
-      )}
-      {row(
-        "Tampil di atas app lain",
-        st?.overlay ? "Diizinkan" : "Belum diizinkan",
-        "openOverlay",
-        "Buka izin overlay"
-      )}
-      {row(
-        "Sumber notifikasi",
-        st ? `${st.packages} app dipilih` : "Pilih app e-wallet",
-        "openPackagePicker",
-        "Pilih sumber notifikasi"
-      )}
-      {row(
-        "Shizuku (opsional)",
-        st?.shizuku || "—",
-        "openShizuku",
-        "Cek Shizuku"
-      )}
-
-      <div
-        className="list-item"
-        style={{ marginTop: 14, alignItems: "center", gap: 10 }}
-      >
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600, color: "var(--ink)" }}>
-            Listener monitoring
-          </div>
-          <p className="muted" style={{ margin: 0, fontSize: 12 }}>
-            {st?.listener ? "Aktif · background" : "Nonaktif"}
+        <section className="glass card-v2 anim-rise">
+          <p className="muted" style={{ margin: 0 }}>
+            Halaman ini paling berguna di aplikasi WALZPAY di HP. Di browser,
+            izin sistem tidak bisa diaktifkan.
           </p>
+        </section>
+      ) : null}
+
+      {ROWS.map((row) => {
+        const ok = isOk(row);
+        const statusText =
+          ok === true ? row.okLabel : ok === false ? row.badLabel : "Memeriksa…";
+        return (
+          <section key={row.key} className="glass card-v2 anim-rise izin-row">
+            <div className="izin-row-top">
+              <div className="izin-row-text">
+                <h3>{row.title}</h3>
+                <p className="muted">{row.desc}</p>
+              </div>
+              <span className={`izin-badge${ok === true ? " ok" : ok === false ? " bad" : ""}`}>
+                {statusText}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary btn-block btn-press"
+              style={{ marginTop: 12 }}
+              onClick={() => run(row.action, row.title)}
+            >
+              {ok === true ? "Buka lagi" : "Aktifkan"}
+            </button>
+          </section>
+        );
+      })}
+
+      <section className="glass card-v2 anim-rise izin-row">
+        <div className="izin-row-top">
+          <div className="izin-row-text">
+            <h3>Listener monitoring</h3>
+            <p className="muted">
+              Menyalakan layanan latar belakang yang mengirim notifikasi
+              pembayaran ke server WALZPAY.
+            </p>
+          </div>
+          <span className={`izin-badge${listenerOn ? " ok" : " bad"}`}>
+            {listenerOn ? "Aktif" : "Nonaktif"}
+          </span>
         </div>
         <button
           type="button"
-          className="btn btn-primary btn-press"
-          style={{ marginTop: 0 }}
-          onClick={() => run("toggleListener", "Status listener diubah")}
+          className="btn btn-primary btn-block btn-press"
+          style={{ marginTop: 12 }}
+          onClick={() => {
+            if (!apiKey && !listenerOn) {
+              pushBubble({
+                title: "API key belum ada",
+                sub: "Buka Setel lalu salin API key, atau generate di sana",
+                tone: "err",
+              });
+              return;
+            }
+            run("toggleListener", listenerOn ? "Listener dimatikan" : "Listener diaktifkan");
+          }}
         >
-          {st?.listener ? "Matikan" : "Aktifkan"}
+          {listenerOn ? "Matikan listener" : "Aktifkan listener"}
         </button>
-      </div>
+        <button
+          type="button"
+          className="btn btn-block btn-ghost btn-press"
+          style={{ marginTop: 8 }}
+          onClick={() => run("saveListener", "Pengaturan disimpan")}
+        >
+          Simpan pengaturan
+        </button>
+        {hook ? (
+          <p className="muted" style={{ marginTop: 12, fontSize: 11, wordBreak: "break-all" }}>
+            Webhook: {hook}
+          </p>
+        ) : null}
+      </section>
 
-      <button
-        type="button"
-        className="btn btn-block btn-press"
-        style={{ marginTop: 12 }}
-        onClick={() => run("saveListener", "Pengaturan disimpan")}
-      >
-        Simpan pengaturan listener
-      </button>
-    </section>
+      <section className="glass card-v2 anim-rise">
+        <h3 style={{ marginTop: 0 }}>Shizuku (opsional)</h3>
+        <p className="muted">
+          Untuk perangkat yang sangat agresif mematikan app di background.
+          Tidak wajib untuk sebagian besar pengguna.
+        </p>
+        <p className="muted" style={{ fontSize: 12 }}>
+          Status: {st?.shizuku || "—"}
+        </p>
+        <button
+          type="button"
+          className="btn btn-block btn-ghost btn-press"
+          style={{ marginTop: 8 }}
+          onClick={() => run("openShizuku", "Shizuku")}
+        >
+          Atur Shizuku
+        </button>
+      </section>
+    </div>
   );
 }
