@@ -39,7 +39,6 @@ function clearSessionCookie(res: NextResponse) {
   });
 }
 
-/** Also destroy session from x-walz-token header if present */
 async function destroyAllSessions(req: NextRequest) {
   const fromCookie = getSid(req);
   if (fromCookie) await destroySession(fromCookie);
@@ -90,7 +89,6 @@ export async function POST(req: NextRequest) {
 
   const action = String(body.action || "");
 
-  // ── Profile / me (session or token) ──────────────────────────────
   if (action === "me") {
     const session = await resolveSession(req);
     if (!session) {
@@ -247,29 +245,37 @@ export async function POST(req: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: "Belum login" }, { status: 401 });
     }
-    const oldPassword = String(body.oldPassword || "");
-    const newPassword = String(body.newPassword || body.password || "");
+    const oldPassword = String(body.oldPassword || "").trim();
+    const newPassword = String(body.newPassword || body.password || "").trim();
+    if (!oldPassword) {
+      return NextResponse.json({ error: "Password lama wajib diisi" }, { status: 400 });
+    }
     if (newPassword.length < 6) {
       return NextResponse.json(
         { error: "Password baru minimal 6 karakter" },
         { status: 400 }
       );
     }
-    const user = await findUserById(session.userId);
-    if (!user) {
-      return NextResponse.json({ error: "User tidak ditemukan" }, { status: 404 });
+    if (oldPassword === newPassword) {
+      return NextResponse.json(
+        { error: "Password baru harus berbeda dari password lama" },
+        { status: 400 }
+      );
     }
-    const oldHash = await hashPassword(oldPassword);
-    if (user.passwordHash && oldHash !== user.passwordHash) {
+
+    // Verify old password against stored hash via same path as login
+    const matched = await verifyUserPassword(session.email, oldPassword);
+    if (!matched) {
       return NextResponse.json({ error: "Password lama salah" }, { status: 401 });
     }
+
     const updated = await updateUser(session.userId, {
       passwordHash: await hashPassword(newPassword),
     });
     if (!updated) {
-      return NextResponse.json({ error: "Gagal update" }, { status: 500 });
+      return NextResponse.json({ error: "Gagal update password" }, { status: 500 });
     }
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, message: "Password berhasil diubah" });
   }
 
   if (action === "enable_a2f" || action === "disable_a2f") {
