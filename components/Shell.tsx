@@ -15,7 +15,10 @@ export function Shell({
     <main className="shell">
       <header className="topbar">
         <div className="brand">
-          <div className="logo">WALZPAY</div>
+          <div className="logo logo-live" aria-label="WALZPAY">
+            <span className="logo-text">WALZPAY</span>
+            <span className="logo-shine" aria-hidden />
+          </div>
           <p className="tagline">{subtitle ?? "Pembayaran otomatis"}</p>
         </div>
         {redisOk !== undefined ? (
@@ -23,11 +26,11 @@ export function Shell({
             <span
               className={`dot ${redisOk ? "on" : redisOk === false ? "off" : ""}`}
             />
-            {redisOk === null ? "…" : redisOk ? "Redis" : "No Redis"}
+            {redisOk === null ? "\u2026" : redisOk ? "Online" : "Offline"}
           </div>
         ) : null}
       </header>
-      {children}
+      <div className="page-enter">{children}</div>
       <Nav active={active} />
     </main>
   );

@@ -4,7 +4,8 @@ const items = [
   { href: "/", label: "Beranda", icon: "⌂" },
   { href: "/riwayat", label: "Riwayat", icon: "☰" },
   { href: "/pesanan", label: "Pesanan", icon: "◇" },
-  { href: "/pengaturan", label: "Profil", icon: "⚙" },
+  { href: "/profil", label: "Profil", icon: "☺" },
+  { href: "/pengaturan", label: "Setel", icon: "⚙" },
 ];
 
 export function Nav({ active }: { active: string }) {
