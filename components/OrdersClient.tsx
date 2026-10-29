@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatRp, formatTime } from "@/lib/format";
+import { apiFetch } from "@/lib/client-api";
 
 type Order = {
   id: string;
@@ -51,8 +52,8 @@ export function OrdersClient() {
 
   const load = useCallback(async () => {
     const [oRes, qRes] = await Promise.all([
-      fetch("/api/orders?status=pending"),
-      fetch("/api/qris-static"),
+      apiFetch("/api/orders?status=pending"),
+      apiFetch("/api/qris-static"),
     ]);
     const oData = await oRes.json();
     const qData = await qRes.json();
@@ -71,13 +72,12 @@ export function OrdersClient() {
       if (fresh) {
         setActive(fresh);
       } else {
-        const allRes = await fetch("/api/orders");
+        const allRes = await apiFetch("/api/orders");
         const allData = await allRes.json();
         const found = (allData.orders ?? []).find((o: Order) => o.id === id);
         if (found?.status === "success") {
           setActive({ ...found });
         } else {
-          // expired / cancelled / hilang → sembunyikan, jangan tampil 0:00
           setActive(null);
           activeIdRef.current = null;
         }
@@ -101,7 +101,6 @@ export function OrdersClient() {
         (new Date(active.expiresAt!).getTime() - Date.now()) / 1000
       );
       if (left <= 0) {
-        // kedaluwarsa: hilangkan dari layar aktif
         setRemainSec(null);
         setActive(null);
         activeIdRef.current = null;
@@ -130,7 +129,7 @@ export function OrdersClient() {
     setActive(null);
     activeIdRef.current = null;
 
-    const res = await fetch("/api/orders", {
+    const res = await apiFetch("/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -156,7 +155,7 @@ export function OrdersClient() {
     if (!confirm("Batalkan transaksi ini?")) return;
     setCancelling(true);
     setBusy(true);
-    await fetch(`/api/orders?id=${encodeURIComponent(id)}`, {
+    await apiFetch(`/api/orders?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
     setBusy(false);
@@ -170,7 +169,6 @@ export function OrdersClient() {
     }, 420);
   }
 
-  // hanya order pending yang masih punya sisa waktu
   const pending = orders.filter((o) => {
     if (o.status !== "pending") return false;
     if (!o.expiresAt) return true;
@@ -270,10 +268,7 @@ export function OrdersClient() {
                 {formatRp(showOrder.totalAmount ?? showOrder.amount)}
               </p>
               {(showOrder.adminFee ?? 0) > 0 ? (
-                <p
-                  className="muted"
-                  style={{ textAlign: "center", marginTop: 4 }}
-                >
+                <p className="muted" style={{ textAlign: "center", marginTop: 4 }}>
                   Nominal {formatRp(showOrder.amount)} + admin{" "}
                   {formatRp(showOrder.adminFee ?? 0)}
                 </p>
@@ -294,9 +289,7 @@ export function OrdersClient() {
 
               <div className="expiry-row">
                 {remainSec != null && remainSec > 0 ? (
-                  <span
-                    className={remainSec < 60 ? "expiry urgent" : "expiry"}
-                  >
+                  <span className={remainSec < 60 ? "expiry urgent" : "expiry"}>
                     Berlaku {remainLabel(remainSec)}
                   </span>
                 ) : null}
