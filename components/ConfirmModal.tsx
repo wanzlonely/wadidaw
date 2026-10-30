@@ -37,16 +37,14 @@ export function ConfirmModal({
   return (
     <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
       <div className="confirm-backdrop" onClick={busy ? undefined : onCancel} />
-      <div className="confirm-sheet glass card-v2 anim-pop">
+      <div className="confirm-sheet glass card-v2">
         <div className={`confirm-icon ${danger ? "is-danger" : "is-info"}`} aria-hidden>
           {danger ? (
             <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.75">
-              <path d="M12 9v4" strokeLinecap="round" />
-              <path d="M12 17h.01" strokeLinecap="round" />
-              <path
-                d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-                strokeLinejoin="round"
-              />
+              <path d="M3 6h18" strokeLinecap="round" />
+              <path d="M8 6V4h8v2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M10 11v6M14 11v6" strokeLinecap="round" />
             </svg>
           ) : (
             <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.75">
@@ -61,12 +59,7 @@ export function ConfirmModal({
         </h3>
         <p className="confirm-msg">{message}</p>
         <div className="confirm-actions">
-          <button
-            type="button"
-            className="btn btn-ghost btn-press confirm-btn"
-            disabled={busy}
-            onClick={onCancel}
-          >
+          <button type="button" className="btn btn-ghost btn-press confirm-btn" disabled={busy} onClick={onCancel}>
             {cancelLabel}
           </button>
           <button
