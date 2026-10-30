@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0B1220" />
+  <title>WALZPAY · Offline</title>
+  <style>
+    :root { --bg:#0B1220; --card:#1A2332; --text:#F8FAFC; --muted:#94A3B8; --primary:#3B82F6; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; text-align:center; }
+    .card { background:var(--card); border-radius:20px; padding:40px 28px; max-width:360px; width:100%; border:1px solid rgba(255,255,255,0.08); }
+    .icon { font-size:42px; margin-bottom:16px; }
+    h1 { font-size:1.3rem; margin-bottom:10px; }
+    p { color:var(--muted); font-size:0.95rem; line-height:1.5; margin-bottom:24px; }
+    button { background:var(--primary); color:#fff; border:none; border-radius:12px; padding:14px 24px; font-size:1rem; font-weight:600; width:100%; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📡</div>
+    <h1>Tidak ada koneksi</h1>
+    <p>Periksa sinyal internet atau Wi-Fi, lalu coba lagi.</p>
+    <button onclick="location.reload()">Coba Lagi</button>
+  </div>
+  <script>
+    window.addEventListener('online', () => location.reload());
+  </script>
+</body>
+</html>
