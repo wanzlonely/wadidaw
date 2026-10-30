@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootContainer"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/walz_bg">
+    android:background="@color/walz_bg"
+    android:fitsSystemWindows="true">
 
     <WebView
         android:id="@+id/webView"
@@ -15,19 +17,21 @@
         android:layout_height="match_parent"
         android:background="@color/walz_bg"
         android:gravity="center"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:paddingHorizontal="24dp">
 
         <ProgressBar
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:indeterminate="true" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="14dp"
             android:text="Memuat WALZPAY"
-            android:textColor="@color/walz_muted" />
+            android:textColor="@color/walz_muted"
+            android:textSize="14sp" />
     </LinearLayout>
 
     <!-- FAB disembunyikan; id tetap agar kode lama tidak crash -->

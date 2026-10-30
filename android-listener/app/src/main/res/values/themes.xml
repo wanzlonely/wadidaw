@@ -11,6 +11,12 @@
         <item name="android:textColorSecondary">@color/walz_muted</item>
         <item name="colorOnPrimary">@color/walz_text</item>
         <item name="materialButtonStyle">@style/WalzButton</item>
+        <!-- Comfortable system UI on all devices -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
     <style name="WalzButton" parent="Widget.MaterialComponents.Button">

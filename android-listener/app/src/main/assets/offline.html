@@ -2,100 +2,263 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>WALZPAY</title>
   <style>
     :root {
       --bg: #0B1220;
-      --card: #1A2332;
+      --card: #141C2B;
       --text: #F8FAFC;
       --muted: #94A3B8;
       --primary: #3B82F6;
       --primary-dark: #1D4ED8;
+      --ring: rgba(59, 130, 246, 0.35);
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
       background: var(--bg);
       color: var(--text);
-      min-height: 100vh;
+      min-height: 100%;
+      min-height: 100dvh;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 24px;
+      padding: calc(24px + var(--safe-top)) 24px calc(24px + var(--safe-bottom));
       text-align: center;
+      -webkit-tap-highlight-color: transparent;
     }
-    .card {
-      background: var(--card);
-      border-radius: 20px;
-      padding: 40px 28px;
-      max-width: 360px;
+
+    /* Soft ambient glow */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% 20%, rgba(59,130,246,0.12), transparent 55%),
+        radial-gradient(ellipse 60% 40% at 50% 100%, rgba(139,92,246,0.06), transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
       width: 100%;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-      border: 1px solid rgba(255,255,255,0.08);
+      max-width: 340px;
     }
-    .icon {
-      width: 72px;
-      height: 72px;
-      margin: 0 auto 20px;
+
+    .card {
+      background: linear-gradient(160deg, rgba(26,35,50,0.95), rgba(15,23,42,0.98));
+      border-radius: 24px;
+      padding: 36px 28px 28px;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.06),
+        0 24px 48px rgba(0,0,0,0.45),
+        inset 0 1px 0 rgba(255,255,255,0.04);
+      backdrop-filter: blur(12px);
+      animation: cardIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(16px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Icon container with pulse rings */
+    .icon-wrap {
+      position: relative;
+      width: 88px;
+      height: 88px;
+      margin: 0 auto 22px;
+    }
+
+    .icon-ring {
+      position: absolute;
+      inset: 0;
       border-radius: 50%;
-      background: rgba(59,130,246,0.15);
+      border: 1.5px solid var(--ring);
+      animation: ringPulse 2.4s ease-out infinite;
+    }
+    .icon-ring.r2 { animation-delay: 0.8s; }
+    .icon-ring.r3 { animation-delay: 1.6s; }
+
+    @keyframes ringPulse {
+      0%   { transform: scale(0.85); opacity: 0.7; }
+      70%  { transform: scale(1.35); opacity: 0; }
+      100% { transform: scale(1.35); opacity: 0; }
+    }
+
+    .icon-circle {
+      position: relative;
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, rgba(59,130,246,0.22), rgba(29,78,216,0.12));
+      border: 1px solid rgba(59,130,246,0.25);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 36px;
+      box-shadow: 0 8px 24px rgba(59,130,246,0.15);
+      animation: iconFloat 3.2s ease-in-out infinite;
     }
+
+    @keyframes iconFloat {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-5px); }
+    }
+
+    .icon-circle svg {
+      width: 40px;
+      height: 40px;
+      color: #60A5FA;
+      filter: drop-shadow(0 2px 6px rgba(96,165,250,0.4));
+    }
+
+    /* Slash animation on wifi */
+    .wifi-slash {
+      stroke-dasharray: 48;
+      stroke-dashoffset: 48;
+      animation: slashDraw 1.1s 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    @keyframes slashDraw {
+      to { stroke-dashoffset: 0; }
+    }
+
     h1 {
-      font-size: 1.35rem;
+      font-size: 1.3rem;
       font-weight: 700;
       margin-bottom: 10px;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.025em;
+      line-height: 1.25;
     }
-    p {
+
+    .desc {
       color: var(--muted);
-      font-size: 0.95rem;
-      line-height: 1.5;
+      font-size: 0.92rem;
+      line-height: 1.55;
       margin-bottom: 28px;
     }
+
     button {
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
       color: white;
       border: none;
-      border-radius: 12px;
-      padding: 14px 28px;
-      font-size: 1rem;
+      border-radius: 14px;
+      padding: 15px 28px;
+      font-size: 0.98rem;
       font-weight: 600;
       width: 100%;
       cursor: pointer;
-      transition: transform 0.15s, opacity 0.15s;
+      letter-spacing: 0.01em;
+      box-shadow: 0 8px 20px rgba(37,99,235,0.35);
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
     }
-    button:active { transform: scale(0.97); opacity: 0.9; }
+    button:active {
+      transform: scale(0.97);
+      box-shadow: 0 4px 12px rgba(37,99,235,0.25);
+    }
+
+    /* Shimmer on button */
+    button::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 60%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255,255,255,0.18),
+        transparent
+      );
+      animation: shimmer 2.8s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      0%   { left: -100%; }
+      40%  { left: 120%; }
+      100% { left: 120%; }
+    }
+
     .hint {
       margin-top: 18px;
-      font-size: 0.8rem;
-      color: var(--muted);
+      font-size: 0.75rem;
+      color: rgba(148,163,184,0.75);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #F87171;
+      margin-right: 6px;
+      vertical-align: middle;
+      animation: blink 1.6s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.35; }
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="icon">📡</div>
-    <h1>Tidak ada koneksi</h1>
-    <p>Periksa sinyal internet atau Wi-Fi, lalu coba lagi.<br/>Data di perangkat tetap aman.</p>
-    <button onclick="retry()">Coba Lagi</button>
-    <p class="hint">WALZPAY · Mode Offline</p>
+  <div class="wrap">
+    <div class="card">
+      <div class="icon-wrap">
+        <div class="icon-ring"></div>
+        <div class="icon-ring r2"></div>
+        <div class="icon-ring r3"></div>
+        <div class="icon-circle">
+          <!-- Premium wifi-off SVG -->
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M12 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" fill="currentColor"/>
+            <path d="M8.24 14.24a6 6 0 0 1 7.52 0" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+            <path d="M5.07 11.07a10 10 0 0 1 13.86 0" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+            <path d="M1.9 7.9a14 14 0 0 1 20.2 0" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+            <!-- Slash -->
+            <path class="wifi-slash" d="M4 4l16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+
+      <h1>Tidak ada koneksi</h1>
+      <p class="desc">
+        Periksa sinyal internet atau Wi-Fi, lalu coba lagi.<br/>
+        Data di perangkat tetap aman.
+      </p>
+
+      <button type="button" onclick="retry()">Coba Lagi</button>
+
+      <p class="hint">
+        <span class="status-dot"></span>WALZPAY · Offline
+      </p>
+    </div>
   </div>
+
   <script>
     function retry() {
       if (window.WalzAndroid && typeof window.WalzAndroid.reload === 'function') {
         window.WalzAndroid.reload();
       } else {
-        // Fallback: try loading main site
-        location.href = 'https://walzpaynew.vercel.app/?v=3.1.0&t=' + Date.now();
+        location.href = 'https://walzpaynew.vercel.app/?v=3.1.1&t=' + Date.now();
       }
     }
-    // Auto-retry every 8s when online
-    window.addEventListener('online', function() { setTimeout(retry, 600); });
+    window.addEventListener('online', function () {
+      setTimeout(retry, 500);
+    });
   </script>
 </body>
 </html>
