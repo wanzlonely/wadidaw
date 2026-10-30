@@ -1,7 +1,6 @@
 /**
  * Static → Dynamic QRIS converter (EMVCo / BI QRIS).
- * Amount is baked into tag 54 so e-wallets (GoPay, OVO, DANA, ShopeePay, etc.)
- * charge the exact total — no separate tip field.
+ * Amount is baked into tag 54 so e-wallets charge the exact total.
  */
 
 type TLV = { tag: string; length: number; value: string; children?: TLV[] };
@@ -15,12 +14,16 @@ export type QrisMeta = {
   merchantName: string;
   merchantCity: string;
   postalCode: string;
+  country: string;
   issuer: string;
+  nmid: string;
+  merchantId: string;
   method: "static" | "dynamic";
   category: string;
   categoryCode: string;
   currency: string;
   currencyCode: string;
+  amount: string;
 };
 
 /** Tags whose value is itself a TLV stream */
@@ -35,7 +38,6 @@ const TAG_ORDER = [
   "52", "53", "54", "55", "56", "57", "58", "59", "60", "61", "62", "63",
 ];
 
-/** Common MCC → readable category (ID focus) */
 const MCC_MAP: Record<string, string> = {
   "5411": "Grocery / Supermarket",
   "5412": "Convenience Store",
@@ -86,7 +88,6 @@ const MCC_MAP: Record<string, string> = {
 function mccCategory(code: string): string {
   if (!code) return "—";
   if (MCC_MAP[code]) return MCC_MAP[code];
-  // Food store range heuristic
   const n = parseInt(code, 10);
   if (n >= 5400 && n <= 5499) return "Food Store";
   if (n >= 5800 && n <= 5814) return "Food & Beverage";
@@ -100,6 +101,13 @@ function currencyLabel(code: string): string {
   if (code === "978") return "EUR";
   if (code === "702") return "SGD";
   return code ? `ISO ${code}` : "IDR (Rupiah)";
+}
+
+function countryLabel(code: string): string {
+  if (code === "ID") return "Indonesia";
+  if (code === "SG") return "Singapore";
+  if (code === "MY") return "Malaysia";
+  return code || "—";
 }
 
 export function calculateCRC16(str: string): string {
@@ -153,18 +161,29 @@ function sortByTagOrder(elements: TLV[]): TLV[] {
   return [...elements].sort((a, b) => rank(a.tag) - rank(b.tag));
 }
 
-/** Extract issuer GUI from MAI tags 26–51 (prefer ID.* / *.WWW) */
-function extractIssuer(elements: TLV[]): string {
-  const candidates: string[] = [];
+/** Extract issuer GUI + NMID / merchant id from MAI tags 26–51 */
+function extractMaiInfo(elements: TLV[]): { issuer: string; nmid: string; merchantId: string } {
+  const candidates: { gui: string; nmid: string; mid: string }[] = [];
   for (const el of elements) {
     if (!NESTED_TAGS.has(el.tag) || el.tag === "62") continue;
     const kids = el.children ?? parseTLV(el.value);
     const gui = kids.find((c) => c.tag === "00")?.value ?? "";
-    if (gui) candidates.push(gui);
+    // Common subtags: 01 merchant id, 02 nmid / account
+    const mid = kids.find((c) => c.tag === "01")?.value ?? "";
+    const nmid =
+      kids.find((c) => c.tag === "02")?.value ||
+      kids.find((c) => c.tag === "03")?.value ||
+      "";
+    if (gui || mid || nmid) candidates.push({ gui, nmid, mid });
   }
-  // Prefer Indonesian QRIS GUI
-  const idn = candidates.find((g) => /ID\.|\.WWW|QRIS|DANA|GOPAY|OVO|SHOPEE|LINKAJA|BCA|BNI|MANDIRI|BRI/i.test(g));
-  return idn || candidates[0] || "—";
+  const pick =
+    candidates.find((g) => /ID\.|\.WWW|QRIS|DANA|GOPAY|OVO|SHOPEE|LINKAJA|BCA|BNI|MANDIRI|BRI/i.test(g.gui)) ||
+    candidates[0];
+  return {
+    issuer: pick?.gui || "—",
+    nmid: pick?.nmid || "",
+    merchantId: pick?.mid || "",
+  };
 }
 
 export function parseQrisMeta(qrisString: string): QrisMeta {
@@ -173,16 +192,21 @@ export function parseQrisMeta(qrisString: string): QrisMeta {
   const methodVal = find("01");
   const mcc = find("52");
   const cur = find("53") || "360";
+  const mai = extractMaiInfo(raw);
   return {
     merchantName: find("59") || "Merchant",
     merchantCity: find("60") || "",
     postalCode: find("61") || "",
-    issuer: extractIssuer(raw),
+    country: countryLabel(find("58") || "ID"),
+    issuer: mai.issuer,
+    nmid: mai.nmid,
+    merchantId: mai.merchantId,
     method: methodVal === "12" ? "dynamic" : "static",
     category: mccCategory(mcc),
     categoryCode: mcc,
     currency: currencyLabel(cur),
     currencyCode: cur,
+    amount: find("54") || "",
   };
 }
 
@@ -195,10 +219,7 @@ export function isLikelyQris(s: string): boolean {
   );
 }
 
-export function computeAdminFee(
-  baseAmount: number,
-  fee: FeeOption
-): number {
+export function computeAdminFee(baseAmount: number, fee: FeeOption): number {
   if (!fee) return 0;
   if (fee.type === "fixed") return Math.max(0, Math.round(fee.value));
   return Math.max(0, Math.round((baseAmount * fee.value) / 100));
@@ -210,22 +231,14 @@ export function convertStaticToDynamic(
   _fee: FeeOption = null
 ): string {
   const clean = qrisString.trim().replace(/\s/g, "");
-  if (!isLikelyQris(clean)) {
-    throw new Error("String QRIS tidak valid");
-  }
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error("Nominal harus > 0");
-  }
+  if (!isLikelyQris(clean)) throw new Error("String QRIS tidak valid");
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Nominal harus > 0");
 
   const amountStr = String(Math.round(amount));
-  if (!/^\d{1,13}$/.test(amountStr)) {
-    throw new Error("Nominal di luar batas QRIS");
-  }
+  if (!/^\d{1,13}$/.test(amountStr)) throw new Error("Nominal di luar batas QRIS");
 
   const elements = parseTLV(clean);
-  if (elements.length === 0) {
-    throw new Error("Gagal parse TLV QRIS");
-  }
+  if (elements.length === 0) throw new Error("Gagal parse TLV QRIS");
 
   const skip = new Set(["54", "55", "56", "57", "63"]);
   const kept: TLV[] = [];
@@ -239,10 +252,7 @@ export function convertStaticToDynamic(
     kept.push(el);
   }
 
-  if (!kept.some((e) => e.tag === "53")) {
-    kept.push(makeTLV("53", "360"));
-  }
-
+  if (!kept.some((e) => e.tag === "53")) kept.push(makeTLV("53", "360"));
   kept.push(makeTLV("54", amountStr));
 
   const ordered = sortByTagOrder(kept);
@@ -251,13 +261,9 @@ export function convertStaticToDynamic(
   const crc = calculateCRC16(crcInput);
   const out = crcInput + crc;
 
-  if (!isLikelyQris(out)) {
-    throw new Error("Hasil konversi QRIS tidak valid");
-  }
-
+  if (!isLikelyQris(out)) throw new Error("Hasil konversi QRIS tidak valid");
   if (!out.includes(`54${amountStr.length.toString().padStart(2, "0")}${amountStr}`)) {
     throw new Error("Tag nominal gagal disisipkan");
   }
-
   return out;
 }
