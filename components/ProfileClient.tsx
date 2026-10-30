@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { decodeQrisFromImage } from "@/lib/decode-qris-image";
+import { decodeQrisFromImage, sanitizePublicError } from "@/lib/decode-qris-image";
 import { isLikelyQris, parseQrisMeta, type QrisMeta } from "@/lib/qris-convert";
 import { apiFetch } from "@/lib/client-api";
 import { pushBubble } from "@/components/BubbleToasts";
@@ -43,6 +43,15 @@ type StaticQris = {
 
 type BusyKey = "fee" | "name" | "secret" | "qris" | "rotate" | null;
 
+function inApp(): boolean {
+  if (typeof window === "undefined") return false;
+  return Boolean(
+    (window as unknown as { __WALZ_APP__?: boolean }).__WALZ_APP__ ||
+      document.documentElement.getAttribute("data-walz-app") === "1" ||
+      /WalzpayApp/i.test(navigator.userAgent)
+  );
+}
+
 export function ProfileClient() {
   const [s, setS] = useState<Settings | null>(null);
   const [templates, setTemplates] = useState<StaticQris[]>([]);
@@ -56,31 +65,42 @@ export function ProfileClient() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    const [sRes, qRes] = await Promise.all([apiFetch("/api/settings"), apiFetch("/api/qris-static")]);
-    const sData = await sRes.json();
-    const qData = await qRes.json();
-    if (!sRes.ok) {
-      setErr(sData.error || "Gagal memuat");
-      return;
+    try {
+      const [sRes, qRes] = await Promise.all([
+        apiFetch("/api/settings"),
+        apiFetch("/api/qris-static"),
+      ]);
+      const sData = await sRes.json();
+      const qData = await qRes.json();
+      if (!sRes.ok) {
+        setErr(sanitizePublicError(sData.error || "Gagal memuat"));
+        return;
+      }
+      setErr(null);
+      const min = sData.settings.feeMin ?? 1;
+      const max = sData.settings.feeMax ?? 99;
+      setS({
+        ...sData.settings,
+        feeType: "random",
+        enabledMerchants: sData.settings.enabledMerchants ?? [],
+        feeMin: min,
+        feeMax: max,
+      });
+      setFeeMinStr(String(min));
+      setFeeMaxStr(String(max));
+      setTemplates(qData.items ?? []);
+    } catch (e) {
+      setErr(sanitizePublicError(e instanceof Error ? e.message : "Gagal memuat"));
     }
-    setErr(null);
-    const min = sData.settings.feeMin ?? 1;
-    const max = sData.settings.feeMax ?? 99;
-    setS({
-      ...sData.settings,
-      feeType: "random",
-      enabledMerchants: sData.settings.enabledMerchants ?? [],
-      feeMin: min,
-      feeMax: max,
-    });
-    setFeeMinStr(String(min));
-    setFeeMaxStr(String(max));
-    setTemplates(qData.items ?? []);
   }, []);
 
   useEffect(() => {
     load();
-    if (typeof window !== "undefined") setHookPath(`${window.location.origin}/api/webhook`);
+    if (typeof window !== "undefined") {
+      // Di app: jangan tampilkan domain penuh
+      if (inApp()) setHookPath("/api/webhook");
+      else setHookPath(`${window.location.origin}/api/webhook`);
+    }
   }, [load]);
 
   async function onPickImage(file: File | null) {
@@ -90,12 +110,12 @@ export function ProfileClient() {
     setPreview(null);
     try {
       const raw = await decodeQrisFromImage(file);
-      if (!isLikelyQris(raw)) throw new Error("QR terdeteksi tapi bukan QRIS EMVCo yang valid");
+      if (!isLikelyQris(raw)) throw new Error("QR terdeteksi tapi bukan QRIS yang valid");
       const meta = parseQrisMeta(raw);
       setPreview({ qrisString: raw, meta });
       pushBubble({ title: "QRIS terdeteksi", sub: meta.merchantName, tone: "info" });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = sanitizePublicError(e instanceof Error ? e.message : String(e));
       setErr(msg);
       pushBubble({ title: "Gagal membaca QR", sub: msg, tone: "err" });
     } finally {
@@ -110,27 +130,51 @@ export function ProfileClient() {
     try {
       const res = await apiFetch("/api/qris-static", {
         method: "POST",
-        body: JSON.stringify({ qrisString: preview.qrisString, label: preview.meta.merchantName }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          qrisString: preview.qrisString,
+          label: preview.meta.merchantName,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setErr(data.error || "Gagal simpan QRIS");
-        pushBubble({ title: "Gagal simpan QRIS", sub: data.error || "Coba lagi", tone: "err" });
+        const msg = sanitizePublicError(data.error || "Gagal simpan QRIS");
+        setErr(msg);
+        pushBubble({ title: "Gagal simpan QRIS", sub: msg, tone: "err" });
         return;
       }
       setPreview(null);
       pushBubble({ title: "QRIS disimpan", sub: preview.meta.merchantName, tone: "ok" });
       load();
+    } catch (e) {
+      const msg = sanitizePublicError(e instanceof Error ? e.message : "Gagal simpan");
+      setErr(msg);
+      pushBubble({ title: "Gagal simpan QRIS", sub: msg, tone: "err" });
     } finally {
       setBusy(null);
     }
   }
 
   async function deleteStatic(id: string) {
-    if (!confirm("Hapus QRIS ini?")) return;
-    await apiFetch(`/api/qris-static?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    pushBubble({ title: "QRIS dihapus", tone: "info" });
-    load();
+    if (!confirm("Hapus QRIS ini dari akun Anda?")) return;
+    try {
+      const res = await apiFetch(`/api/qris-static?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        pushBubble({
+          title: "Gagal menghapus",
+          sub: sanitizePublicError((data as { error?: string }).error || "Coba lagi"),
+          tone: "err",
+        });
+        return;
+      }
+      pushBubble({ title: "QRIS dihapus", sub: "Sudah dihapus dari akun", tone: "info" });
+      load();
+    } catch {
+      pushBubble({ title: "Gagal menghapus", sub: "Periksa koneksi lalu coba lagi", tone: "err" });
+    }
   }
 
   async function saveSettings(key: BusyKey, payload: Record<string, unknown>) {
@@ -140,12 +184,14 @@ export function ProfileClient() {
     try {
       const res = await apiFetch("/api/settings", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "update", ...payload }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setErr(data.error || "Gagal simpan");
-        pushBubble({ title: "Gagal menyimpan", sub: data.error || "Coba lagi", tone: "err" });
+        const msg = sanitizePublicError(data.error || "Gagal simpan");
+        setErr(msg);
+        pushBubble({ title: "Gagal menyimpan", sub: msg, tone: "err" });
         return;
       }
       setS({
@@ -211,18 +257,25 @@ export function ProfileClient() {
   }
 
   async function rotateKey() {
-    if (!confirm("Generate API key baru? Key lama tidak bisa dipakai.")) return;
+    if (!confirm("Buat API key baru? Key lama tidak bisa dipakai lagi.")) return;
     setBusy("rotate");
     try {
       const res = await apiFetch("/api/settings", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "rotate_api_key" }),
       });
       const data = await res.json();
       if (res.ok) {
         setS((prev) => (prev ? { ...prev, apiKey: data.apiKey } : prev));
         pushBubble({ title: "API key baru dibuat", sub: "Perubahan telah disimpan", tone: "ok" });
-      } else pushBubble({ title: "Gagal rotate key", tone: "err" });
+      } else {
+        pushBubble({
+          title: "Gagal membuat key",
+          sub: sanitizePublicError(data.error || "Coba lagi"),
+          tone: "err",
+        });
+      }
     } finally {
       setBusy(null);
     }
@@ -246,8 +299,8 @@ export function ProfileClient() {
   }
 
   const m = preview?.meta;
-  const origin =
-    typeof window !== "undefined" ? window.location.origin : "https://walzpaynew.vercel.app";
+  // Jangan expose domain di mode app
+  const apiBaseLabel = inApp() ? "(internal)" : typeof window !== "undefined" ? window.location.origin : "";
 
   return (
     <div className="setel-v2">
@@ -281,15 +334,32 @@ export function ProfileClient() {
                 {t.merchantCity ? ` · ${t.merchantCity}` : ""}
               </p>
             </div>
-            <button type="button" className="btn btn-ghost btn-press" style={{ marginTop: 0 }} onClick={() => deleteStatic(t.id)}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-press"
+              style={{ marginTop: 0 }}
+              onClick={() => deleteStatic(t.id)}
+            >
               Hapus
             </button>
           </div>
         ))}
         {templates.length < 3 ? (
           <div style={{ marginTop: 14 }}>
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => onPickImage(e.target.files?.[0] ?? null)} />
-            <button type="button" className="btn btn-block btn-press" disabled={scanning || busy !== null} onClick={() => fileRef.current?.click()}>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture={undefined}
+              style={{ display: "none" }}
+              onChange={(e) => onPickImage(e.target.files?.[0] ?? null)}
+            />
+            <button
+              type="button"
+              className="btn btn-block btn-press"
+              disabled={scanning || busy !== null}
+              onClick={() => fileRef.current?.click()}
+            >
               {scanning ? (
                 <>
                   <IconSpinner size={15} /> Membaca QR…
@@ -304,25 +374,60 @@ export function ProfileClient() {
               <div className="preview-box anim-pop qris-info-panel">
                 <h3 className="qris-info-title">QRIS Information</h3>
                 <div className="qris-info-grid">
-                  <div className="qris-info-row"><span>Merchant</span><strong>{m.merchantName || "-"}</strong></div>
-                  <div className="qris-info-row"><span>City</span><strong>{m.merchantCity || "-"}</strong></div>
-                  <div className="qris-info-row"><span>Postal Code</span><strong>{m.postalCode || "-"}</strong></div>
-                  <div className="qris-info-row"><span>Issuer</span><strong>{m.issuer || "-"}</strong></div>
-                  <div className="qris-info-row"><span>Method</span><strong>{m.method === "dynamic" ? "Dynamic" : "Static"}</strong></div>
-                  <div className="qris-info-row"><span>Category</span><strong>{m.category || "-"}</strong></div>
-                  <div className="qris-info-row"><span>Currency</span><strong>{m.currency || "IDR (Rupiah)"}</strong></div>
+                  <div className="qris-info-row">
+                    <span>Merchant</span>
+                    <strong>{m.merchantName || "-"}</strong>
+                  </div>
+                  <div className="qris-info-row">
+                    <span>City</span>
+                    <strong>{m.merchantCity || "-"}</strong>
+                  </div>
+                  <div className="qris-info-row">
+                    <span>Postal Code</span>
+                    <strong>{m.postalCode || "-"}</strong>
+                  </div>
+                  <div className="qris-info-row">
+                    <span>Issuer</span>
+                    <strong>{m.issuer || "-"}</strong>
+                  </div>
+                  <div className="qris-info-row">
+                    <span>Method</span>
+                    <strong>{m.method === "dynamic" ? "Dynamic" : "Static"}</strong>
+                  </div>
+                  <div className="qris-info-row">
+                    <span>Category</span>
+                    <strong>{m.category || "-"}</strong>
+                  </div>
+                  <div className="qris-info-row">
+                    <span>Currency</span>
+                    <strong>{m.currency || "IDR (Rupiah)"}</strong>
+                  </div>
                 </div>
-                <button type="button" className="btn btn-block btn-press" style={{ marginTop: 14 }} disabled={busy === "qris"} onClick={saveStatic}>
+                <button
+                  type="button"
+                  className="btn btn-block btn-press"
+                  style={{ marginTop: 14 }}
+                  disabled={busy === "qris"}
+                  onClick={saveStatic}
+                >
                   {busy === "qris" ? "Menyimpan…" : "Simpan QRIS"}
                 </button>
-                <button type="button" className="btn btn-block btn-ghost btn-press" style={{ marginTop: 8 }} disabled={busy === "qris"} onClick={() => setPreview(null)}>
+                <button
+                  type="button"
+                  className="btn btn-block btn-ghost btn-press"
+                  style={{ marginTop: 8 }}
+                  disabled={busy === "qris"}
+                  onClick={() => setPreview(null)}
+                >
                   Batal
                 </button>
               </div>
             ) : null}
           </div>
         ) : (
-          <p className="muted" style={{ marginTop: 10 }}>Slot penuh (3/3)</p>
+          <p className="muted" style={{ marginTop: 10 }}>
+            Slot penuh (3/3)
+          </p>
         )}
       </section>
 
@@ -330,26 +435,65 @@ export function ProfileClient() {
         <h2>
           <IconCash size={16} /> Biaya admin & masa berlaku
         </h2>
-        <p className="muted" style={{ marginBottom: 10 }}>Biaya admin acak dalam rentang di bawah.</p>
+        <p className="muted" style={{ marginBottom: 10 }}>
+          Biaya admin acak dalam rentang di bawah.
+        </p>
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ flex: 1 }}>
-            <label className="muted" style={{ fontSize: 12 }}>Min (Rp)</label>
-            <input className="input" style={{ width: "100%", marginTop: 4 }} type="text" inputMode="numeric" value={feeMinStr} onChange={(e) => setFeeMinStr(e.target.value.replace(/[^\d]/g, ""))} onBlur={() => { if (feeMinStr === "") setFeeMinStr("0"); }} />
+            <label className="muted" style={{ fontSize: 12 }}>
+              Min (Rp)
+            </label>
+            <input
+              className="input"
+              style={{ width: "100%", marginTop: 4 }}
+              type="text"
+              inputMode="numeric"
+              value={feeMinStr}
+              onChange={(e) => setFeeMinStr(e.target.value.replace(/[^\d]/g, ""))}
+              onBlur={() => {
+                if (feeMinStr === "") setFeeMinStr("0");
+              }}
+            />
           </div>
           <div style={{ flex: 1 }}>
-            <label className="muted" style={{ fontSize: 12 }}>Max (Rp)</label>
-            <input className="input" style={{ width: "100%", marginTop: 4 }} type="text" inputMode="numeric" value={feeMaxStr} onChange={(e) => setFeeMaxStr(e.target.value.replace(/[^\d]/g, ""))} onBlur={() => { if (feeMaxStr === "") setFeeMaxStr("0"); }} />
+            <label className="muted" style={{ fontSize: 12 }}>
+              Max (Rp)
+            </label>
+            <input
+              className="input"
+              style={{ width: "100%", marginTop: 4 }}
+              type="text"
+              inputMode="numeric"
+              value={feeMaxStr}
+              onChange={(e) => setFeeMaxStr(e.target.value.replace(/[^\d]/g, ""))}
+              onBlur={() => {
+                if (feeMaxStr === "") setFeeMaxStr("0");
+              }}
+            />
           </div>
         </div>
-        <label className="muted" style={{ display: "block", marginTop: 14 }}>Default expired order</label>
-        <select className="input" style={{ width: "100%", marginTop: 4 }} value={s.defaultExpiryMinutes} onChange={(e) => setS({ ...s, defaultExpiryMinutes: Number(e.target.value) })}>
+        <label className="muted" style={{ display: "block", marginTop: 14 }}>
+          Default expired order
+        </label>
+        <select
+          className="input"
+          style={{ width: "100%", marginTop: 4 }}
+          value={s.defaultExpiryMinutes}
+          onChange={(e) => setS({ ...s, defaultExpiryMinutes: Number(e.target.value) })}
+        >
           <option value={10}>10 menit</option>
           <option value={15}>15 menit</option>
           <option value={30}>30 menit</option>
           <option value={60}>60 menit</option>
           <option value={120}>2 jam</option>
         </select>
-        <button type="button" className="btn btn-block btn-press" style={{ marginTop: 12 }} disabled={busy === "fee"} onClick={saveFee}>
+        <button
+          type="button"
+          className="btn btn-block btn-press"
+          style={{ marginTop: 12 }}
+          disabled={busy === "fee"}
+          onClick={saveFee}
+        >
           {busy === "fee" ? "Menyimpan…" : "Simpan"}
         </button>
       </section>
@@ -358,8 +502,19 @@ export function ProfileClient() {
         <h2>
           <IconTag size={16} /> Nama tampilan
         </h2>
-        <input className="input" style={{ width: "100%", marginTop: 8 }} value={s.displayName} onChange={(e) => setS({ ...s, displayName: e.target.value })} />
-        <button type="button" className="btn btn-block btn-press" style={{ marginTop: 12 }} disabled={busy === "name"} onClick={saveName}>
+        <input
+          className="input"
+          style={{ width: "100%", marginTop: 8 }}
+          value={s.displayName}
+          onChange={(e) => setS({ ...s, displayName: e.target.value })}
+        />
+        <button
+          type="button"
+          className="btn btn-block btn-press"
+          style={{ marginTop: 12 }}
+          disabled={busy === "name"}
+          onClick={saveName}
+        >
           {busy === "name" ? "Menyimpan…" : "Simpan nama"}
         </button>
       </section>
@@ -369,12 +524,31 @@ export function ProfileClient() {
           <IconLink size={16} /> Webhook HP
         </h2>
         <code className="code">{hookPath}</code>
-        <button type="button" className="btn btn-ghost btn-press" style={{ marginTop: 8 }} onClick={() => copy(hookPath, "Webhook URL")}>
+        <button
+          type="button"
+          className="btn btn-ghost btn-press"
+          style={{ marginTop: 8 }}
+          onClick={() => copy(hookPath, "Webhook URL")}
+        >
           <IconCopy size={14} /> Salin URL
         </button>
-        <label className="muted" style={{ display: "block", marginTop: 14 }}>Webhook secret</label>
-        <input className="input" style={{ width: "100%", marginTop: 4 }} placeholder="Opsional" value={s.webhookSecret} onChange={(e) => setS({ ...s, webhookSecret: e.target.value })} />
-        <button type="button" className="btn btn-block btn-press" style={{ marginTop: 10 }} disabled={busy === "secret"} onClick={saveSecret}>
+        <label className="muted" style={{ display: "block", marginTop: 14 }}>
+          Webhook secret
+        </label>
+        <input
+          className="input"
+          style={{ width: "100%", marginTop: 4 }}
+          placeholder="Opsional"
+          value={s.webhookSecret}
+          onChange={(e) => setS({ ...s, webhookSecret: e.target.value })}
+        />
+        <button
+          type="button"
+          className="btn btn-block btn-press"
+          style={{ marginTop: 10 }}
+          disabled={busy === "secret"}
+          onClick={saveSecret}
+        >
           {busy === "secret" ? "Menyimpan…" : "Simpan secret"}
         </button>
       </section>
@@ -391,8 +565,19 @@ export function ProfileClient() {
           <button type="button" className="btn btn-ghost btn-press" onClick={() => copy(s.apiKey, "API key")}>
             <IconCopy size={14} /> Salin
           </button>
-          <button type="button" className="btn btn-ghost btn-press" disabled={busy === "rotate"} onClick={rotateKey}>
-            {busy === "rotate" ? <IconSpinner size={14} /> : <><IconRefresh size={14} /> Rotate</>}
+          <button
+            type="button"
+            className="btn btn-ghost btn-press"
+            disabled={busy === "rotate"}
+            onClick={rotateKey}
+          >
+            {busy === "rotate" ? (
+              <IconSpinner size={14} />
+            ) : (
+              <>
+                <IconRefresh size={14} /> Rotate
+              </>
+            )}
           </button>
         </div>
       </section>
@@ -410,9 +595,9 @@ export function ProfileClient() {
             <div className="sync-body">
               <p className="sync-title">Bot buat pesanan</p>
               <p className="sync-desc">
-                <code>POST {origin}/api/orders</code>
-                {" "}dengan header <code>X-Api-Key</code>.
-                Body: <code>amount</code>, opsional <code>qrisStaticId</code>, <code>callbackUrl</code>, <code>reference</code>.
+                <code>POST {apiBaseLabel}/api/orders</code> dengan header <code>X-Api-Key</code>. Body:{" "}
+                <code>amount</code>, opsional <code>qrisStaticId</code>, <code>callbackUrl</code>,{" "}
+                <code>reference</code>.
               </p>
             </div>
           </div>
@@ -430,7 +615,8 @@ export function ProfileClient() {
             <div className="sync-body">
               <p className="sync-title">App HP deteksi pembayaran</p>
               <p className="sync-desc">
-                Notifikasi bank/e-wallet masuk → listener kirim ke webhook → order otomatis <strong>success</strong>.
+                Notifikasi bank/e-wallet masuk → listener kirim ke webhook → order otomatis{" "}
+                <strong>success</strong>.
               </p>
             </div>
           </div>
@@ -439,13 +625,15 @@ export function ProfileClient() {
             <div className="sync-body">
               <p className="sync-title">Callback ke bot / website</p>
               <p className="sync-desc">
-                WALZPAY kirim event <code>order.paid</code> ke <code>callbackUrl</code> pesanan + Forward URL global.
+                WALZPAY kirim event <code>order.paid</code> ke <code>callbackUrl</code> pesanan + Forward
+                URL global.
               </p>
             </div>
           </div>
         </div>
         <div className="sync-tip">
-          <strong>Tips:</strong> simpan API key di bot. Tambah Forward URL di dashboard bila butuh push ke Telegram / WhatsApp / custom webhook.
+          <strong>Tips:</strong> simpan API key di bot. Tambah Forward URL di dashboard bila butuh push ke
+          Telegram / WhatsApp / custom webhook.
         </div>
       </section>
     </div>
