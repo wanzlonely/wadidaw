@@ -77,6 +77,130 @@
   gap: 8px;
 }
 
+/* —— Confirm modal (premium, no native browser dialog) —— */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 10, 24, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: confirm-fade 0.25s ease both;
+}
+
+@keyframes confirm-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.confirm-sheet {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 340px;
+  margin: 0;
+  padding: 28px 22px 20px;
+  text-align: center;
+  animation: confirm-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes confirm-pop {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.confirm-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-icon.is-danger {
+  color: #ff8fa3;
+  background: rgba(255, 143, 163, 0.14);
+  border: 1px solid rgba(255, 143, 163, 0.3);
+  box-shadow: 0 0 24px rgba(255, 143, 163, 0.15);
+}
+
+.confirm-icon.is-info {
+  color: #6eb6ff;
+  background: rgba(110, 182, 255, 0.14);
+  border: 1px solid rgba(110, 182, 255, 0.3);
+}
+
+.confirm-title {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.confirm-msg {
+  margin: 0 0 22px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.confirm-btn {
+  flex: 1;
+  margin: 0;
+}
+
+.confirm-btn-danger {
+  color: #fff !important;
+  background: linear-gradient(160deg, #ff8fa3 0%, #e85a7a 100%) !important;
+  box-shadow: 0 10px 28px rgba(232, 90, 122, 0.35) !important;
+}
+
+/* —— Webhook URL field —— */
+.webhook-field {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line-soft);
+  text-align: left;
+}
+
+.webhook-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 6px;
+}
+
+.webhook-url {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+  word-break: break-all;
+  color: var(--aqua);
+}
+
 /* —— Auth login/register —— */
 .auth-shell {
   position: relative;
