@@ -43,8 +43,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var loading: View
     private var showingOffline = false
-
-    /** Callback for <input type=file> from WebView (galeri / file picker) */
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
 
     companion object {
@@ -100,9 +98,7 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         WindowCompat.setDecorFitsSystemWindows(window, true)
-
         SessionStore.init(this)
         setContentView(R.layout.activity_web)
 
@@ -117,12 +113,7 @@ class MainActivity : AppCompatActivity() {
 
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.updatePadding(
-                left = bars.left,
-                top = bars.top,
-                right = bars.right,
-                bottom = bars.bottom
-            )
+            v.updatePadding(left = bars.left, top = bars.top, right = bars.right, bottom = bars.bottom)
             insets
         }
 
@@ -131,15 +122,13 @@ class MainActivity : AppCompatActivity() {
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
         settings.allowFileAccess = true
-        settings.allowContentAccess = true // needed for gallery content:// URIs
+        settings.allowContentAccess = true
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         settings.cacheMode = WebSettings.LOAD_DEFAULT
         settings.mediaPlaybackRequiresUserGesture = true
         settings.setSupportMultipleWindows(false)
         settings.javaScriptCanOpenWindowsAutomatically = false
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            settings.safeBrowsingEnabled = true
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) settings.safeBrowsingEnabled = true
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.userAgentString = settings.userAgentString + " WalzpayApp/" + SITE_CACHE_BUST
@@ -151,12 +140,8 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
-                if (url.contains("walzpay") || url.contains("vercel.app") || url.startsWith("file://")) {
-                    return false
-                }
-                try {
-                    startActivity(Intent(Intent.ACTION_VIEW, request?.url))
-                } catch (_: Exception) {}
+                if (url.contains("walzpay") || url.contains("vercel.app") || url.startsWith("file://")) return false
+                try { startActivity(Intent(Intent.ACTION_VIEW, request?.url)) } catch (_: Exception) {}
                 return true
             }
 
@@ -169,43 +154,27 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 loading.visibility = View.GONE
-                if (url != null && !url.startsWith("file://")) {
-                    injectBridgeHook()
-                }
+                if (url != null && !url.startsWith("file://")) injectBridgeHook()
             }
 
-            override fun onReceivedError(
-                view: WebView?,
-                request: WebResourceRequest?,
-                error: WebResourceError?
-            ) {
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 if (request?.isForMainFrame == true) showOfflinePage()
             }
 
             @Deprecated("Deprecated in API 23")
-            override fun onReceivedError(
-                view: WebView?,
-                errorCode: Int,
-                description: String?,
-                failingUrl: String?
-            ) {
-                if (failingUrl != null && (failingUrl.startsWith("http") || failingUrl == SITE_URL)) {
-                    showOfflinePage()
-                }
+            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                if (failingUrl != null && (failingUrl.startsWith("http") || failingUrl == SITE_URL)) showOfflinePage()
             }
         }
 
-        // File / gallery picker for <input type="file" accept="image/*">
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
                 webView: WebView?,
                 filePathCallback: ValueCallback<Array<Uri>>?,
                 fileChooserParams: FileChooserParams?
             ): Boolean {
-                // Cancel previous pending callback
                 this@MainActivity.filePathCallback?.onReceiveValue(null)
                 this@MainActivity.filePathCallback = filePathCallback
-
                 val intent = try {
                     fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
                         addCategory(Intent.CATEGORY_OPENABLE)
@@ -217,14 +186,9 @@ class MainActivity : AppCompatActivity() {
                         type = "image/*"
                     }
                 }
-                // Prefer images from gallery
-                if (intent.type.isNullOrBlank() || intent.type == "*/*") {
-                    intent.type = "image/*"
-                }
+                if (intent.type.isNullOrBlank() || intent.type == "*/*") intent.type = "image/*"
                 try {
-                    fileChooserLauncher.launch(
-                        Intent.createChooser(intent, "Pilih gambar QRIS")
-                    )
+                    fileChooserLauncher.launch(Intent.createChooser(intent, "Pilih gambar QRIS"))
                 } catch (_: Exception) {
                     this@MainActivity.filePathCallback = null
                     filePathCallback?.onReceiveValue(null)
@@ -244,15 +208,9 @@ class MainActivity : AppCompatActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (showingOffline) {
-                    loadMainSite()
-                    return
-                }
+                if (showingOffline) { loadMainSite(); return }
                 if (webView.canGoBack()) webView.goBack()
-                else {
-                    isEnabled = false
-                    onBackPressedDispatcher.onBackPressed()
-                }
+                else { isEnabled = false; onBackPressedDispatcher.onBackPressed() }
             }
         })
     }
@@ -267,8 +225,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadMainSite() {
         showingOffline = false
-        val ts = System.currentTimeMillis()
-        webView.loadUrl("$SITE_URL/?v=$SITE_CACHE_BUST&t=$ts")
+        webView.loadUrl("$SITE_URL/?v=$SITE_CACHE_BUST&t=${System.currentTimeMillis()}")
     }
 
     private fun showOfflinePage() {
@@ -287,11 +244,7 @@ class MainActivity : AppCompatActivity() {
 
     inner class WalzBridge {
         @JavascriptInterface fun isApp(): Boolean = true
-
-        @JavascriptInterface
-        fun reload() {
-            runOnUiThread { loadMainSite() }
-        }
+        @JavascriptInterface fun reload() { runOnUiThread { loadMainSite() } }
 
         @JavascriptInterface
         fun getStatusJson(): String {
@@ -308,11 +261,8 @@ class MainActivity : AppCompatActivity() {
             return j.toString()
         }
 
-        @JavascriptInterface
-        fun openNotificationAccess() {
-            runOnUiThread {
-                startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-            }
+        @JavascriptInterface fun openNotificationAccess() {
+            runOnUiThread { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
         }
 
         @JavascriptInterface
@@ -324,8 +274,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        @JavascriptInterface
-        fun openBattery() { runOnUiThread { OemHelper.openBatterySettings(this@MainActivity) } }
+        @JavascriptInterface fun openBattery() { runOnUiThread { OemHelper.openBatterySettings(this@MainActivity) } }
 
         @JavascriptInterface
         fun openAutostart() {
@@ -335,10 +284,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        @JavascriptInterface
-        fun markAutostartDone() {
-            prefs().edit().putBoolean("autostart_done", true).apply()
-        }
+        @JavascriptInterface fun markAutostartDone() { prefs().edit().putBoolean("autostart_done", true).apply() }
 
         @JavascriptInterface
         fun openOverlay() {
@@ -370,9 +316,7 @@ class MainActivity : AppCompatActivity() {
             val arr = JSONArray()
             available.forEach { (pkg, label) ->
                 val o = JSONObject()
-                o.put("pkg", pkg)
-                o.put("label", label)
-                o.put("selected", current.contains(pkg))
+                o.put("pkg", pkg); o.put("label", label); o.put("selected", current.contains(pkg))
                 arr.put(o)
             }
             return arr.toString()
@@ -438,8 +382,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun hasPostNotifications(): Boolean {
         if (Build.VERSION.SDK_INT < 33) return true
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun isNotificationEnabled(): Boolean {
@@ -477,6 +420,7 @@ class MainActivity : AppCompatActivity() {
         val packages = available.keys.toList()
         val labels = packages.map { "${available[it]}\n$it" }.toTypedArray()
         val current = prefs().getStringSet("selected_packages", null)?.toMutableSet() ?: mutableSetOf()
+        current.retainAll(packages.toSet())
         val checked = packages.map { current.contains(it) }.toBooleanArray()
         AlertDialog.Builder(this)
             .setTitle("Pilih sumber notifikasi")
