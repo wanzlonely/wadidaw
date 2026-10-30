@@ -40,7 +40,7 @@ Repo: https://github.com/wanzlonely/wadidaw
 ### Android Listener (`android-listener/`)
 - **Pilih aplikasi** sumber notifikasi (DANA, GoPay, OVO, Shopee, WA, bank, + app terpasang)
 - **Akses notifikasi** (Notification Listener Service)
-- **Tanpa bat incatan baterai** (Request ignore battery optimizations)
+- **Tanpa batasan baterai** (Request ignore battery optimizations)
 - **Mulai otomatis** setelah boot (`BootReceiver` + KeepAlive foreground service)
 - **Webhook URL + secret** tersimpan di HP
 - **Log lokal** di aplikasi
