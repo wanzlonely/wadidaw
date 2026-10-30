@@ -31,6 +31,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -79,6 +80,7 @@ export default function LoginPage() {
       };
       if (mode === "register") {
         body.displayName = displayName || email.split("@")[0];
+        body.username = username.trim();
         body.password2 = password2;
       }
 
@@ -232,21 +234,41 @@ export default function LoginPage() {
 
             <form onSubmit={submit} className="auth-v2-form">
               {mode === "register" ? (
-                <label className="auth-v2-field">
-                  <span className="auth-v2-label">
-                    <span className="lbl-ico">
-                      <IconUser size={13} />
-                    </span>{" "}
-                    Nama tampilan
-                  </span>
-                  <input
-                    className="input"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Nama toko / merchant"
-                    autoComplete="name"
-                  />
-                </label>
+                <>
+                  <label className="auth-v2-field">
+                    <span className="auth-v2-label">
+                      <span className="lbl-ico">
+                        <IconUser size={13} />
+                      </span>{" "}
+                      Username
+                    </span>
+                    <input
+                      className="input"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 24))}
+                      placeholder="contoh: toko_saya"
+                      required
+                      minLength={3}
+                      autoComplete="username"
+                    />
+                    <span className="muted" style={{ fontSize: 11, marginTop: 4 }}>Huruf kecil, angka, _. Tidak bisa diganti nanti.</span>
+                  </label>
+                  <label className="auth-v2-field">
+                    <span className="auth-v2-label">
+                      <span className="lbl-ico">
+                        <IconUser size={13} />
+                      </span>{" "}
+                      Nama tampilan
+                    </span>
+                    <input
+                      className="input"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="Nama toko / merchant"
+                      autoComplete="name"
+                    />
+                  </label>
+                </>
               ) : null}
 
               <label className="auth-v2-field">
