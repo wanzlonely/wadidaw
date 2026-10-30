@@ -18,6 +18,7 @@ import android.provider.Settings
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -43,9 +44,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var loading: View
     private var showingOffline = false
 
+    /** Callback for <input type=file> from WebView (galeri / file picker) */
+    private var filePathCallback: ValueCallback<Array<Uri>>? = null
+
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
-        const val SITE_CACHE_BUST = "3.1.1"
+        const val SITE_CACHE_BUST = "3.1.2"
         private const val OFFLINE_URL = "file:///android_asset/offline.html"
     }
 
@@ -72,17 +76,36 @@ class MainActivity : AppCompatActivity() {
             toast(if (granted) "Notifikasi aplikasi diizinkan" else "Izin notifikasi ditolak")
         }
 
+    private val fileChooserLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val callback = filePathCallback
+            filePathCallback = null
+            if (callback == null) return@registerForActivityResult
+            if (result.resultCode != RESULT_OK || result.data == null) {
+                callback.onReceiveValue(null)
+                return@registerForActivityResult
+            }
+            val data = result.data!!
+            val uris: Array<Uri>? = when {
+                data.clipData != null -> {
+                    val clip = data.clipData!!
+                    Array(clip.itemCount) { i -> clip.getItemAt(i).uri }
+                }
+                data.data != null -> arrayOf(data.data!!)
+                else -> null
+            }
+            callback.onReceiveValue(uris)
+        }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Comfortable system bars on all devices (status bar, notch, gesture nav)
         WindowCompat.setDecorFitsSystemWindows(window, true)
 
         SessionStore.init(this)
         setContentView(R.layout.activity_web)
 
-        // Security: never enable WebView debugging in production builds
         if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
             WebView.setWebContentsDebuggingEnabled(false)
         }
@@ -92,7 +115,6 @@ class MainActivity : AppCompatActivity() {
         loading = findViewById(R.id.loadingOverlay)
         findViewById<View?>(R.id.fabListener)?.visibility = View.GONE
 
-        // Extra safety: apply system bar insets as padding (works on gesture nav + 3-button)
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.updatePadding(
@@ -109,7 +131,7 @@ class MainActivity : AppCompatActivity() {
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
         settings.allowFileAccess = true
-        settings.allowContentAccess = false
+        settings.allowContentAccess = true // needed for gallery content:// URIs
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         settings.cacheMode = WebSettings.LOAD_DEFAULT
         settings.mediaPlaybackRequiresUserGesture = true
@@ -118,7 +140,6 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             settings.safeBrowsingEnabled = true
         }
-        // Use wide viewport so web UI scales nicely on phones & tablets
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.userAgentString = settings.userAgentString + " WalzpayApp/" + SITE_CACHE_BUST
@@ -139,7 +160,7 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
 
-            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+            override fun onPageStarted(view: WebView?, url: string?, favicon: Bitmap?) {
                 if (url != null && !url.startsWith("file://")) {
                     showingOffline = false
                     loading.visibility = View.VISIBLE
@@ -158,9 +179,7 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest?,
                 error: WebResourceError?
             ) {
-                if (request?.isForMainFrame == true) {
-                    showOfflinePage()
-                }
+                if (request?.isForMainFrame == true) showOfflinePage()
             }
 
             @Deprecated("Deprecated in API 23")
@@ -175,7 +194,46 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        webView.webChromeClient = WebChromeClient()
+
+        // File / gallery picker for <input type="file" accept="image/*">
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                webView: WebView?,
+                filePathCallback: ValueCallback<Array<Uri>>?,
+                fileChooserParams: FileChooserParams?
+            ): Boolean {
+                // Cancel previous pending callback
+                this@MainActivity.filePathCallback?.onReceiveValue(null)
+                this@MainActivity.filePathCallback = filePathCallback
+
+                val intent = try {
+                    fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "image/*"
+                    }
+                } catch (_: Exception) {
+                    Intent(Intent.ACTION_GET_CONTENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "image/*"
+                    }
+                }
+                // Prefer images from gallery
+                if (intent.type.isNullOrBlank() || intent.type == "*/*") {
+                    intent.type = "image/*"
+                }
+                try {
+                    fileChooserLauncher.launch(
+                        Intent.createChooser(intent, "Pilih gambar QRIS")
+                    )
+                } catch (_: Exception) {
+                    this@MainActivity.filePathCallback = null
+                    filePathCallback?.onReceiveValue(null)
+                    toast("Tidak bisa membuka galeri")
+                    return false
+                }
+                return true
+            }
+        }
 
         if (savedInstanceState == null) {
             prefs().edit().putString("last_cache_bust", SITE_CACHE_BUST).apply()
@@ -297,7 +355,7 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 when {
                     !ShizukuHelper.isAvailable() -> toast("Pasang dan jalankan app Shizuku dulu")
-                    ShizukuHelper.isGranted() -> { /* already connected */ }
+                    ShizukuHelper.isGranted() -> { }
                     else -> ShizukuHelper.requestPermission()
                 }
             }
