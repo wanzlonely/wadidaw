@@ -72,22 +72,30 @@ export function Shell({
   if (!ready) {
     return (
       <main className="shell shell-loading">
+        <div className="boot-bg" aria-hidden>
+          <span className="boot-aurora boot-aurora-a" />
+          <span className="boot-aurora boot-aurora-b" />
+          <span className="boot-aurora boot-aurora-c" />
+          <span className="boot-grid" />
+        </div>
         <div className="boot-loader" aria-busy="true" aria-label="Memuat">
-          <div className="boot-orb boot-orb-1" aria-hidden />
-          <div className="boot-orb boot-orb-2" aria-hidden />
           <div className="boot-core">
-            <div className="boot-ring" aria-hidden />
-            <div className="boot-ring boot-ring-2" aria-hidden />
-            <div className="boot-mark">W</div>
+            <span className="boot-halo" />
+            <span className="boot-ring boot-ring-outer" />
+            <span className="boot-ring boot-ring-mid" />
+            <span className="boot-ring boot-ring-inner" />
+            <div className="boot-mark">
+              <span className="boot-mark-letter">W</span>
+              <span className="boot-mark-shine" />
+            </div>
           </div>
-          <div className="boot-bars" aria-hidden>
-            <span />
-            <span />
-            <span />
-            <span />
-            <span />
+          <div className="boot-brand">
+            <p className="boot-title">WALZPAY</p>
+            <p className="boot-sub">Menyiapkan dashboard…</p>
           </div>
-          <p className="boot-label">WALZPAY</p>
+          <div className="boot-track" aria-hidden>
+            <span className="boot-track-fill" />
+          </div>
         </div>
       </main>
     );
