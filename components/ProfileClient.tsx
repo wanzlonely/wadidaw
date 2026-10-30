@@ -121,11 +121,11 @@ export function ProfileClient() {
         pushBubble({ title: "Gagal menghapus", sub: sanitizePublicError((data as { error?: string }).error || "Coba lagi"), tone: "err" });
         return;
       }
-      pushBubble({ title: "QRIS dihapus", sub: "Sudah dihapus dari akun", tone: "info" });
+      pushBubble({ title: "QRIS dihapus", tone: "info" });
       setDeleteTarget(null);
       load();
     } catch {
-      pushBubble({ title: "Gagal menghapus", sub: "Periksa koneksi lalu coba lagi", tone: "err" });
+      pushBubble({ title: "Gagal menghapus", sub: "Periksa koneksi", tone: "err" });
     } finally {
       setDeleting(false);
     }
@@ -150,7 +150,7 @@ export function ProfileClient() {
       setS({ ...data.settings, feeType: "random", enabledMerchants: data.settings.enabledMerchants ?? [], feeMin: data.settings.feeMin ?? s.feeMin, feeMax: data.settings.feeMax ?? s.feeMax });
       setFeeMinStr(String(data.settings.feeMin ?? s.feeMin));
       setFeeMaxStr(String(data.settings.feeMax ?? s.feeMax));
-      pushBubble({ title: "Perubahan disimpan", sub: "Pengaturan berhasil diperbarui", tone: "ok" });
+      pushBubble({ title: "Perubahan disimpan", tone: "ok" });
     } catch {
       setErr("Koneksi gagal");
       pushBubble({ title: "Koneksi gagal", tone: "err" });
@@ -181,9 +181,9 @@ export function ProfileClient() {
       const data = await res.json();
       if (res.ok) {
         setS((prev) => (prev ? { ...prev, apiKey: data.apiKey } : prev));
-        pushBubble({ title: "API key baru dibuat", sub: "Perubahan telah disimpan", tone: "ok" });
+        pushBubble({ title: "API key baru dibuat", tone: "ok" });
       } else {
-        pushBubble({ title: "Gagal membuat key", sub: sanitizePublicError(data.error || "Coba lagi"), tone: "err" });
+        pushBubble({ title: "Gagal membuat key", tone: "err" });
       }
     } finally {
       setBusy(null);
@@ -212,7 +212,7 @@ export function ProfileClient() {
 
       <section className="glass card-v2 anim-rise">
         <h2><IconCamera size={16} /> QRIS statis · maks. 3</h2>
-        <p className="muted" style={{ marginBottom: 12 }}>Upload foto QRIS dari galeri. String dan info dibaca otomatis.</p>
+        <p className="muted" style={{ marginBottom: 12 }}>Pilih foto QRIS dari galeri.</p>
         {templates.map((t) => (
           <div key={t.id} className="list-item" style={{ marginTop: 10 }}>
             <span className="riwayat-ico" aria-hidden><IconQr size={18} /></span>
@@ -283,13 +283,13 @@ export function ProfileClient() {
 
       <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.12s" }}>
         <h2><IconLink size={16} /> Webhook HP</h2>
-        <p className="muted" style={{ fontSize: 12, marginBottom: 4 }}>Tempel URL ini di aplikasi listener di HP kasir.</p>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 4 }}>Alamat penerima notifikasi pembayaran dari HP.</p>
         <div className="webhook-field">
           <span className="webhook-label">URL Webhook</span>
           <span className="webhook-url">{hookPath || "…"}</span>
         </div>
-        <button type="button" className="btn btn-ghost btn-press" style={{ marginTop: 8 }} onClick={() => copy(hookPath, "Webhook URL")}>
-          <IconCopy size={14} /> Salin URL lengkap
+        <button type="button" className="btn btn-ghost btn-press" style={{ marginTop: 8 }} onClick={() => copy(hookPath, "Webhook")}>
+          <IconCopy size={14} /> Salin
         </button>
         <label className="muted" style={{ display: "block", marginTop: 14 }}>Webhook secret</label>
         <input className="input" style={{ width: "100%", marginTop: 4 }} placeholder="Opsional" value={s.webhookSecret} onChange={(e) => setS({ ...s, webhookSecret: e.target.value })} />
@@ -298,7 +298,7 @@ export function ProfileClient() {
 
       <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.16s" }}>
         <h2><IconKey size={16} /> API key</h2>
-        <p className="muted" style={{ marginBottom: 8, fontSize: 12 }}>Pakai header <code>X-Api-Key</code> dari bot untuk buat pesanan.</p>
+        <p className="muted" style={{ marginBottom: 8, fontSize: 12 }}>Header <code>X-Api-Key</code> untuk bot membuat pesanan.</p>
         <code className="code">{s.apiKey}</code>
         <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
           <button type="button" className="btn btn-ghost btn-press" onClick={() => copy(s.apiKey, "API key")}><IconCopy size={14} /> Salin</button>
@@ -310,9 +310,9 @@ export function ProfileClient() {
 
       <ConfirmModal
         open={Boolean(deleteTarget)}
-        title="Hapus QRIS?"
-        message={deleteTarget ? `QRIS “${deleteTarget.name}” akan dihapus dari akun Anda. Tindakan ini tidak bisa dibatalkan.` : ""}
-        confirmLabel="Ya, hapus"
+        title="Hapus QRIS ini?"
+        message={deleteTarget ? `“${deleteTarget.name}” akan dihapus permanen.` : ""}
+        confirmLabel="Hapus"
         cancelLabel="Batal"
         danger
         busy={deleting}
@@ -322,8 +322,8 @@ export function ProfileClient() {
       <ConfirmModal
         open={rotateOpen}
         title="Buat API key baru?"
-        message="Key lama tidak bisa dipakai lagi. Pastikan bot atau integrasi Anda diperbarui."
-        confirmLabel="Ya, buat baru"
+        message="Key lama tidak bisa dipakai lagi."
+        confirmLabel="Buat baru"
         cancelLabel="Batal"
         danger={false}
         busy={busy === "rotate"}
