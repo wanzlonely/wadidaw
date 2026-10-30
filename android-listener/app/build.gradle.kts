@@ -5,23 +5,27 @@ plugins {
 
 android {
     namespace = "com.walzpay.listener"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.walzpay.listener"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 31
-        versionName = "3.0.1"
+        targetSdk = 35
+        versionCode = 32
+        versionName = "3.1.0"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            isMinifyEnabled = false
         }
     }
 

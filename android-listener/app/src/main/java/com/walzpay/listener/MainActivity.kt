@@ -8,6 +8,8 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -17,9 +19,9 @@ import android.view.View
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
-import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -35,10 +37,12 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var loading: View
+    private var showingOffline = false
 
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
-        const val SITE_CACHE_BUST = "3.0.1"
+        const val SITE_CACHE_BUST = "3.1.0"
+        private const val OFFLINE_URL = "file:///android_asset/offline.html"
     }
 
     private val knownPackages = linkedMapOf(
@@ -70,6 +74,11 @@ class MainActivity : AppCompatActivity() {
         SessionStore.init(this)
         setContentView(R.layout.activity_web)
 
+        // Security: never enable WebView debugging in production builds
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+            WebView.setWebContentsDebuggingEnabled(false)
+        }
+
         webView = findViewById(R.id.webView)
         loading = findViewById(R.id.loadingOverlay)
         findViewById<View?>(R.id.fabListener)?.visibility = View.GONE
@@ -79,53 +88,114 @@ class MainActivity : AppCompatActivity() {
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
         settings.allowFileAccess = true
-        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-        settings.cacheMode = WebSettings.LOAD_NO_CACHE
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        settings.allowContentAccess = false
+        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        settings.cacheMode = WebSettings.LOAD_DEFAULT
+        settings.mediaPlaybackRequiresUserGesture = true
+        settings.setSupportMultipleWindows(false)
+        settings.javaScriptCanOpenWindowsAutomatically = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            settings.safeBrowsingEnabled = true
         }
-        settings.userAgentString = settings.userAgentString + " WalzpayApp/3.0.1"
-
-        webView.clearCache(true)
-        webView.clearHistory()
-        webView.clearFormData()
-        try { WebStorage.getInstance().deleteAllData() } catch (_: Exception) {}
+        settings.userAgentString = settings.userAgentString + " WalzpayApp/" + SITE_CACHE_BUST
 
         CookieManager.getInstance().setAcceptCookie(true)
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false)
         webView.addJavascriptInterface(WalzBridge(), "WalzAndroid")
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
-                if (url.contains("walzpay") || url.contains("vercel.app")) return false
-                try { startActivity(Intent(Intent.ACTION_VIEW, request?.url)) } catch (_: Exception) {}
+                // Keep all our domains inside WebView
+                if (url.contains("walzpay") || url.contains("vercel.app") || url.startsWith("file://")) {
+                    return false
+                }
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, request?.url))
+                } catch (_: Exception) {}
                 return true
             }
+
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                loading.visibility = View.VISIBLE
+                if (url != null && !url.startsWith("file://")) {
+                    showingOffline = false
+                    loading.visibility = View.VISIBLE
+                }
             }
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 loading.visibility = View.GONE
-                injectBridgeHook()
+                if (url != null && !url.startsWith("file://")) {
+                    injectBridgeHook()
+                }
+            }
+
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?
+            ) {
+                // Only handle main-frame errors (not images/scripts)
+                if (request?.isForMainFrame == true) {
+                    showOfflinePage()
+                }
+            }
+
+            @Deprecated("Deprecated in API 23")
+            override fun onReceivedError(
+                view: WebView?,
+                errorCode: Int,
+                description: String?,
+                failingUrl: String?
+            ) {
+                if (failingUrl != null && (failingUrl.startsWith("http") || failingUrl == SITE_URL)) {
+                    showOfflinePage()
+                }
             }
         }
         webView.webChromeClient = WebChromeClient()
 
         if (savedInstanceState == null) {
             prefs().edit().putString("last_cache_bust", SITE_CACHE_BUST).apply()
-            val ts = System.currentTimeMillis()
-            webView.loadUrl("$SITE_URL/?v=$SITE_CACHE_BUST&t=$ts")
+            loadMainSite()
         } else {
             webView.restoreState(savedInstanceState)
         }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                if (showingOffline) {
+                    loadMainSite()
+                    return
+                }
                 if (webView.canGoBack()) webView.goBack()
-                else { isEnabled = false; onBackPressedDispatcher.onBackPressed() }
+                else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
             }
         })
+    }
+
+    private fun isOnline(): Boolean {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    private fun loadMainSite() {
+        showingOffline = false
+        val ts = System.currentTimeMillis()
+        webView.loadUrl("$SITE_URL/?v=$SITE_CACHE_BUST&t=$ts")
+    }
+
+    private fun showOfflinePage() {
+        if (showingOffline) return
+        showingOffline = true
+        loading.visibility = View.GONE
+        webView.loadUrl(OFFLINE_URL)
     }
 
     private fun injectBridgeHook() {
@@ -139,6 +209,11 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun isApp(): Boolean = true
 
         @JavascriptInterface
+        fun reload() {
+            runOnUiThread { loadMainSite() }
+        }
+
+        @JavascriptInterface
         fun getStatusJson(): String {
             val j = JSONObject()
             j.put("notification", isNotificationEnabled())
@@ -149,6 +224,7 @@ class MainActivity : AppCompatActivity() {
             j.put("shizuku", try { ShizukuHelper.statusText() } catch (_: Throwable) { "n/a" })
             j.put("packages", prefs().getStringSet("selected_packages", null)?.size ?: 0)
             j.put("autostart", prefs().getBoolean("autostart_done", false))
+            j.put("online", isOnline())
             return j.toString()
         }
 
@@ -339,6 +415,6 @@ class MainActivity : AppCompatActivity() {
     private fun isPkg(pkg: String) = try { packageManager.getPackageInfo(pkg, 0); true } catch (_: Exception) { false }
 
     override fun onSaveInstanceState(outState: Bundle) { super.onSaveInstanceState(outState); webView.saveState(outState) }
-    override fun onResume() { super.onResume(); webView.onResume(); injectBridgeHook() }
+    override fun onResume() { super.onResume(); webView.onResume(); if (!showingOffline) injectBridgeHook() }
     override fun onPause() { webView.onPause(); super.onPause() }
 }
