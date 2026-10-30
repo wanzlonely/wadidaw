@@ -30,6 +30,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -41,7 +45,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
-        const val SITE_CACHE_BUST = "3.1.0"
+        const val SITE_CACHE_BUST = "3.1.1"
         private const val OFFLINE_URL = "file:///android_asset/offline.html"
     }
 
@@ -71,6 +75,10 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Comfortable system bars on all devices (status bar, notch, gesture nav)
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+
         SessionStore.init(this)
         setContentView(R.layout.activity_web)
 
@@ -79,9 +87,22 @@ class MainActivity : AppCompatActivity() {
             WebView.setWebContentsDebuggingEnabled(false)
         }
 
+        val root = findViewById<View>(R.id.rootContainer)
         webView = findViewById(R.id.webView)
         loading = findViewById(R.id.loadingOverlay)
         findViewById<View?>(R.id.fabListener)?.visibility = View.GONE
+
+        // Extra safety: apply system bar insets as padding (works on gesture nav + 3-button)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.updatePadding(
+                left = bars.left,
+                top = bars.top,
+                right = bars.right,
+                bottom = bars.bottom
+            )
+            insets
+        }
 
         val settings: WebSettings = webView.settings
         settings.javaScriptEnabled = true
@@ -97,6 +118,9 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             settings.safeBrowsingEnabled = true
         }
+        // Use wide viewport so web UI scales nicely on phones & tablets
+        settings.useWideViewPort = true
+        settings.loadWithOverviewMode = true
         settings.userAgentString = settings.userAgentString + " WalzpayApp/" + SITE_CACHE_BUST
 
         CookieManager.getInstance().setAcceptCookie(true)
@@ -106,7 +130,6 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
-                // Keep all our domains inside WebView
                 if (url.contains("walzpay") || url.contains("vercel.app") || url.startsWith("file://")) {
                     return false
                 }
@@ -135,7 +158,6 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest?,
                 error: WebResourceError?
             ) {
-                // Only handle main-frame errors (not images/scripts)
                 if (request?.isForMainFrame == true) {
                     showOfflinePage()
                 }
