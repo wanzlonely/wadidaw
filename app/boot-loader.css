@@ -1,0 +1,174 @@
+/* Premium boot loader — selaras tema #0b1020 */
+
+.shell.shell-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  min-height: 100svh;
+  padding: 0;
+  margin: 0 auto;
+  background: #0b1020;
+}
+
+.boot-loader {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  animation: boot-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes boot-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.boot-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(48px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.boot-orb-1 {
+  width: 180px;
+  height: 180px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-70%, -65%);
+  background: rgba(110, 182, 255, 0.28);
+  animation: boot-orb-a 4s ease-in-out infinite alternate;
+}
+
+.boot-orb-2 {
+  width: 140px;
+  height: 140px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-15%, -25%);
+  background: rgba(126, 224, 200, 0.16);
+  animation: boot-orb-b 5s ease-in-out infinite alternate;
+}
+
+@keyframes boot-orb-a {
+  from { transform: translate(-70%, -65%) scale(1); }
+  to { transform: translate(-55%, -55%) scale(1.06); }
+}
+
+@keyframes boot-orb-b {
+  from { transform: translate(-15%, -25%) scale(1); }
+  to { transform: translate(-30%, -35%) scale(1.08); }
+}
+
+.boot-core {
+  position: relative;
+  z-index: 1;
+  width: 88px;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.boot-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: rgba(174, 212, 255, 0.9);
+  border-right-color: rgba(126, 224, 200, 0.35);
+  animation: boot-spin 1.15s cubic-bezier(0.5, 0.15, 0.5, 0.85) infinite;
+}
+
+.boot-ring-2 {
+  inset: 8px;
+  border-top-color: rgba(168, 212, 255, 0.55);
+  border-right-color: transparent;
+  border-bottom-color: rgba(110, 182, 255, 0.3);
+  animation-duration: 1.7s;
+  animation-direction: reverse;
+}
+
+@keyframes boot-spin {
+  to { transform: rotate(360deg); }
+}
+
+.boot-mark {
+  position: relative;
+  z-index: 2;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.22), rgba(110, 182, 255, 0.16));
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 0 28px rgba(110, 182, 255, 0.28);
+  animation: boot-mark-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes boot-mark-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 28px rgba(110, 182, 255, 0.28);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 0 36px rgba(110, 182, 255, 0.4);
+  }
+}
+
+.boot-bars {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 22px;
+}
+
+.boot-bars span {
+  width: 4px;
+  border-radius: 99px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(110, 182, 255, 0.65));
+  animation: boot-bar 1s ease-in-out infinite;
+}
+
+.boot-bars span:nth-child(1) { height: 8px; animation-delay: 0s; }
+.boot-bars span:nth-child(2) { height: 14px; animation-delay: 0.1s; }
+.boot-bars span:nth-child(3) { height: 20px; animation-delay: 0.2s; }
+.boot-bars span:nth-child(4) { height: 12px; animation-delay: 0.3s; }
+.boot-bars span:nth-child(5) { height: 7px; animation-delay: 0.4s; }
+
+@keyframes boot-bar {
+  0%, 100% { transform: scaleY(0.55); opacity: 0.5; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+.boot-label {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(200, 210, 230, 0.55);
+  animation: boot-label-fade 1.6s ease-in-out infinite;
+}
+
+@keyframes boot-label-fade {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
