@@ -194,7 +194,6 @@ export function ProfileClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "update_profile",
-          username: username.trim(),
           displayName: displayName.trim(),
         }),
       });
@@ -210,7 +209,7 @@ export function ProfileClient() {
         setDisplayName(data.user.displayName || displayName);
         setS((prev) => (prev ? { ...prev, displayName: data.user.displayName } : prev));
       }
-      pushBubble({ title: "Profil disimpan", tone: "ok" });
+      pushBubble({ title: "Nama tampilan disimpan", tone: "ok" });
     } catch {
       setErr("Koneksi gagal");
       pushBubble({ title: "Koneksi gagal", tone: "err" });
@@ -312,9 +311,7 @@ export function ProfileClient() {
               <div style={{ fontWeight: 600, color: "var(--ink)" }}>{t.label || t.merchantName}</div>
               <p className="muted">{t.merchantName}{t.merchantCity ? ` · ${t.merchantCity}` : ""}</p>
             </div>
-            <button type="button" className="btn btn-ghost btn-press" style={{ marginTop: 0 }} onClick={() => requestDelete(t.id, t.label || t.merchantName)}>
-              Hapus
-            </button>
+            <button type="button" className="btn btn-ghost btn-press" style={{ marginTop: 0 }} onClick={() => requestDelete(t.id, t.label || t.merchantName)}>Hapus</button>
           </div>
         ))}
         {templates.length < 3 ? (
@@ -331,9 +328,7 @@ export function ProfileClient() {
                     <p className="qris-card-kicker">QRIS terdeteksi</p>
                     <h3 className="qris-card-title">{m.merchantName || "Merchant"}</h3>
                   </div>
-                  <span className={`qris-pill ${m.method === "dynamic" ? "is-dyn" : "is-static"}`}>
-                    {m.method === "dynamic" ? "Dynamic" : "Static"}
-                  </span>
+                  <span className={`qris-pill ${m.method === "dynamic" ? "is-dyn" : "is-static"}`}>{m.method === "dynamic" ? "Dynamic" : "Static"}</span>
                 </div>
                 <div className="qris-card-grid">
                   <div className="qris-cell"><span className="qris-label">Kota</span><span className="qris-value">{m.merchantCity || "—"}</span></div>
@@ -383,13 +378,13 @@ export function ProfileClient() {
 
       <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.08s" }}>
         <h2><IconTag size={16} /> Identitas akun</h2>
-        <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>Username unik untuk akun. Nama tampilan bebas diubah kapan saja.</p>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>Username ditetapkan saat daftar dan tidak bisa diganti. Nama tampilan bebas diubah.</p>
         <label className="muted" style={{ fontSize: 12 }}>Username</label>
-        <input className="input" style={{ width: "100%", marginTop: 4 }} value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 24))} placeholder="contoh: toko_saya" autoComplete="username" />
-        <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>Huruf kecil, angka, underscore. Minimal 3 karakter. Tidak boleh dipakai orang lain.</p>
+        <input className="input" style={{ width: "100%", marginTop: 4, opacity: 0.85 }} value={username || "—"} readOnly disabled autoComplete="username" />
+        <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>Hanya diisi saat daftar akun.</p>
         <label className="muted" style={{ fontSize: 12, display: "block", marginTop: 12 }}>Nama tampilan</label>
         <input className="input" style={{ width: "100%", marginTop: 4 }} value={displayName} onChange={(e) => setDisplayName(e.target.value.slice(0, 40))} placeholder="Nama yang tampil di profil" />
-        <button type="button" className="btn btn-block btn-press" style={{ marginTop: 12 }} disabled={busy === "name"} onClick={saveName}>{busy === "name" ? "Menyimpan…" : "Simpan identitas"}</button>
+        <button type="button" className="btn btn-block btn-press" style={{ marginTop: 12 }} disabled={busy === "name"} onClick={saveName}>{busy === "name" ? "Menyimpan…" : "Simpan nama tampilan"}</button>
       </section>
 
       <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.12s" }}>
