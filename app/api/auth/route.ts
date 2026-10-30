@@ -66,7 +66,8 @@ export async function GET(req: NextRequest) {
     user: {
       id: session.userId,
       email: session.email,
-      displayName: session.displayName,
+      username: user?.username ?? "",
+      displayName: user?.displayName ?? session.displayName,
       a2fEnabled: user?.a2fEnabled ?? false,
       hasPassword: Boolean(user?.passwordHash),
       createdAt: user?.createdAt ?? null,
@@ -103,6 +104,7 @@ export async function POST(req: NextRequest) {
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         displayName: user.displayName,
         a2fEnabled: user.a2fEnabled,
         hasPassword: Boolean(user.passwordHash),
@@ -117,6 +119,7 @@ export async function POST(req: NextRequest) {
     const password = String(body.password || "");
     const password2 = String(body.password2 || "");
     const displayName = String(body.displayName || "");
+    const username = String(body.username || displayName || "");
     const captchaAnswer = String(body.captchaAnswer || "").trim();
     const captchaExpected = String(body.captchaExpected || "").trim();
 
@@ -127,7 +130,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Konfirmasi password tidak cocok" }, { status: 400 });
     }
 
-    const result = await createUser({ email, password, displayName });
+    const result = await createUser({ email, password, displayName, username });
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
@@ -186,7 +189,12 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.json({
       ok: true,
       token: sid,
-      user: { id: user.id, email: user.email, displayName: user.displayName },
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+      },
     });
     setSessionCookie(res, sid);
     return res;
@@ -227,7 +235,12 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.json({
       ok: true,
       token: sid,
-      user: { id: user.id, email: user.email, displayName: user.displayName },
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+      },
     });
     setSessionCookie(res, sid);
     return res;
@@ -263,7 +276,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify old password against stored hash via same path as login
     const matched = await verifyUserPassword(session.email, oldPassword);
     if (!matched) {
       return NextResponse.json({ error: "Password lama salah" }, { status: 401 });
@@ -293,6 +305,7 @@ export async function POST(req: NextRequest) {
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         displayName: user.displayName,
         a2fEnabled: user.a2fEnabled,
       },
@@ -308,13 +321,22 @@ export async function POST(req: NextRequest) {
     if (body.displayName != null) {
       patch.displayName = String(body.displayName).trim().slice(0, 40);
     }
+    if (body.username != null) {
+      patch.username = String(body.username).trim();
+    }
     if (body.a2fEnabled != null) {
       patch.a2fEnabled = Boolean(body.a2fEnabled);
     }
     if (body.password != null && String(body.password).length >= 6) {
       patch.passwordHash = await hashPassword(String(body.password));
     }
-    const user = await updateUser(session.userId, patch);
+    let user;
+    try {
+      user = await updateUser(session.userId, patch);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Gagal update profil";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
     if (!user) {
       return NextResponse.json({ error: "User tidak ditemukan" }, { status: 404 });
     }
@@ -328,6 +350,7 @@ export async function POST(req: NextRequest) {
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         displayName: user.displayName,
         a2fEnabled: user.a2fEnabled,
       },
