@@ -321,9 +321,7 @@ export async function POST(req: NextRequest) {
     if (body.displayName != null) {
       patch.displayName = String(body.displayName).trim().slice(0, 40);
     }
-    if (body.username != null) {
-      patch.username = String(body.username).trim();
-    }
+    // username hanya bisa di-set saat register, tidak bisa diganti
     if (body.a2fEnabled != null) {
       patch.a2fEnabled = Boolean(body.a2fEnabled);
     }
