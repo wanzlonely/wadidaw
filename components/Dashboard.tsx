@@ -50,11 +50,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const isApp =
-        Boolean((window as unknown as { __WALZ_APP__?: boolean }).__WALZ_APP__) ||
-        document.documentElement.getAttribute("data-walz-app") === "1" ||
-        /WalzpayApp/i.test(navigator.userAgent);
-      setHookPath(isApp ? "/api/webhook" : `${window.location.origin}/api/webhook`);
+      setHookPath(`${window.location.origin}/api/webhook`);
       try {
         setSound(localStorage.getItem(LS_SOUND) !== "0");
       } catch {
@@ -274,46 +270,69 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
 
       <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.08s" }}>
         <h2>Webhook HP</h2>
-        <code className="code">{hookPath}</code>
-        <button type="button" className="btn btn-block btn-press" onClick={copyHook}>
-          Salin URL
-        </button>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+          URL lengkap untuk diisi di aplikasi Android (listener notifikasi).
+        </p>
+        <div className="url-card">
+          <div className="url-card-head">
+            <span className="url-card-badge">Webhook</span>
+            <span className="url-card-hint">Penerima dari HP</span>
+          </div>
+          <div className="webhook-field">
+            <span className="webhook-label">URL lengkap</span>
+            <span className="webhook-url">{hookPath}</span>
+          </div>
+          <button type="button" className="btn btn-block btn-press" style={{ marginTop: 10 }} onClick={copyHook}>
+            Salin
+          </button>
+        </div>
       </section>
 
       <section className="glass card-v2 anim-rise" style={{ animationDelay: "0.1s" }}>
         <h2>Forward URL</h2>
-        <div className="form-row" style={{ marginTop: 8 }}>
-          <input
-            className="input"
-            placeholder="https://…"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-          <button
-            type="button"
-            className="btn btn-press"
-            style={{ marginTop: 0 }}
-            disabled={busy}
-            onClick={addForward}
-          >
-            + Tambah
-          </button>
-        </div>
-        {forwards.map((f) => (
-          <div key={f.id} className="list-item" style={{ marginTop: 10 }}>
-            <code className="code" style={{ flex: 1, marginTop: 0 }}>
-              {f.url}
-            </code>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+          Setiap pembayaran berhasil dikirim (POST JSON) ke URL di bawah.
+        </p>
+        <div className="url-card">
+          <div className="url-card-head">
+            <span className="url-card-badge is-forward">Forward</span>
+            <span className="url-card-hint">Ke bot / server Anda</span>
+          </div>
+          {forwards.length === 0 ? (
+            <p className="muted" style={{ fontSize: 12, margin: "8px 0" }}>Belum ada forward URL.</p>
+          ) : (
+            forwards.map((f) => (
+              <div key={f.id} className="forward-row">
+                <span className="forward-url">{f.url}</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-press"
+                  style={{ marginTop: 0, padding: "6px 10px" }}
+                  onClick={() => removeForward(f.id)}
+                >
+                  Hapus
+                </button>
+              </div>
+            ))
+          )}
+          <div className="form-row" style={{ marginTop: 10 }}>
+            <input
+              className="input"
+              placeholder="https://bot.example.com/callback"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+            />
             <button
               type="button"
-              className="btn btn-ghost btn-press"
+              className="btn btn-press"
               style={{ marginTop: 0 }}
-              onClick={() => removeForward(f.id)}
+              disabled={busy}
+              onClick={addForward}
             >
-              Hapus
+              + Tambah
             </button>
           </div>
-        ))}
+        </div>
       </section>
 
       <section className="glass card-v2 row anim-rise" style={{ animationDelay: "0.12s" }}>
