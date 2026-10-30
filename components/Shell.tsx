@@ -125,6 +125,24 @@ export function Shell({
       </header>
       <div className="page-enter">{children}</div>
       <Nav active={active} />
+      <a
+        className="cs-float"
+        href="https://t.me/Nebunox"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Customer service Telegram"
+        title="Bantuan · Telegram @Nebunox"
+      >
+        <span className="cs-float-ring" aria-hidden />
+        <span className="cs-float-icon" aria-hidden>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="M21 12a9 9 0 1 1-9-9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+            <path d="M12 8v5l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M16.5 4.5l3 1.2-1.2 3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+        <span className="cs-float-label">Bantuan</span>
+      </a>
     </main>
   );
 }
