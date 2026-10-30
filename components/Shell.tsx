@@ -126,22 +126,18 @@ export function Shell({
       <div className="page-enter">{children}</div>
       <Nav active={active} />
       <a
-        className="cs-float"
+        className="cs-float cs-float-icon-only"
         href="https://t.me/Nebunox"
         target="_blank"
         rel="noopener noreferrer"
-        aria-label="Customer service Telegram"
+        aria-label="Customer service Telegram @Nebunox"
         title="Bantuan · Telegram @Nebunox"
       >
         <span className="cs-float-ring" aria-hidden />
-        <span className="cs-float-icon" aria-hidden>
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path d="M21 12a9 9 0 1 1-9-9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-            <path d="M12 8v5l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M16.5 4.5l3 1.2-1.2 3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
-        <span className="cs-float-label">Bantuan</span>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path d="M21.5 3.5L2.5 10.5l6.5 2.5 2.5 7 3-4.5 5 3.5L21.5 3.5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+          <path d="M9 13l9.5-7.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
       </a>
     </main>
   );

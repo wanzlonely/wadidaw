@@ -7,6 +7,7 @@ import { pushBubble } from "@/components/BubbleToasts";
 type UserInfo = {
   id: string;
   email: string;
+  username: string;
   displayName: string;
   a2fEnabled: boolean;
   hasPassword: boolean;
@@ -131,6 +132,7 @@ export function AkunClient() {
         setU({
           id: getData.user.id,
           email: getData.user.email,
+          username: getData.user.username || "",
           displayName: getData.user.displayName,
           a2fEnabled: Boolean(getData.user.a2fEnabled),
           hasPassword: Boolean(getData.user.hasPassword),
@@ -161,7 +163,6 @@ export function AkunClient() {
     load();
   }, [load]);
 
-  /** Satu jalur notifikasi: hanya bubble toast (tanpa banner inline) */
   function notify(title: string, tone: "ok" | "err" | "info" = "info", sub?: string) {
     pushBubble({ title, sub, tone });
   }
@@ -296,7 +297,7 @@ export function AkunClient() {
         </div>
         {u?.createdAt ? (
           <p className="profil-joined">
-            <IconCalendar /> Bergabung {" "}
+            <IconCalendar /> Bergabung{" "}
             {new Date(u.createdAt).toLocaleDateString("id-ID")}
           </p>
         ) : null}
@@ -316,8 +317,8 @@ export function AkunClient() {
             <span className="profil-detail-v">{u?.email || "—"}</span>
           </div>
           <div className="profil-detail">
-            <span className="profil-detail-k">Nama</span>
-            <span className="profil-detail-v">{u?.displayName || "—"}</span>
+            <span className="profil-detail-k">Username</span>
+            <span className="profil-detail-v">{u?.username ? `@${u.username}` : "—"}</span>
           </div>
           <div className="profil-detail">
             <span className="profil-detail-k">A2F</span>
