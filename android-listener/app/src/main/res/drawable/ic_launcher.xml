@@ -7,19 +7,22 @@
     <path
         android:fillColor="#0B1220"
         android:pathData="M0,0h108v108h-108z" />
+    
+    <!-- Stylized W -->
     <path
-        android:fillColor="#1D4ED8"
-        android:pathData="M30,30h48v36h-48z" />
+        android:fillColor="#8B5CF6"
+        android:pathData="M22,28 C24,28 26,29 27.5,32 L38,62 L48,38 L58,62 L68.5,32 C70,29 72,28 74,28 L80,28 C82,28 83,29.5 82,31.5 L70,72 C69,75 67,77 64,77 L58,77 C55.5,77 54,75.5 53,73 L48,56 L43,73 C42,75.5 40.5,77 38,77 L32,77 C29,77 27,75 26,72 L14,31.5 C13,29.5 14,28 16,28 Z" />
+    
+    <!-- Cyan swoosh -->
     <path
-        android:fillColor="#3B82F6"
-        android:pathData="M34,34h40v28h-40z" />
+        android:strokeColor="#22D3EE"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M18,72 Q35,68 48,64 Q65,59 82,48 Q86,45 88,42" />
+    
+    <!-- Sparkle -->
     <path
-        android:fillColor="#93C5FD"
-        android:pathData="M40,42h12v8h-12z" />
-    <path
-        android:fillColor="#60A5FA"
-        android:pathData="M28,72 L36,72 L42,90 L48,72 L56,72 L49,96 L39,96 L36,86 L33,96 L23,96 Z" />
-    <path
-        android:fillColor="#A78BFA"
-        android:pathData="M64,70 L84,70 L84,78 L74,78 L84,88 L76,88 L66,78 L66,88 L64,88 Z" />
+        android:fillColor="#22D3EE"
+        android:pathData="M82,34 L84,38 L88,40 L84,42 L82,46 L80,42 L76,40 L80,38 Z" />
 </vector>
