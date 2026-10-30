@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from
+import { useEffect } from "react";
 
 export function ConfirmModal({
   open,
