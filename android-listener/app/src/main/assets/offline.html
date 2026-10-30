@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>WALZPAY</title>
+  <style>
+    :root {
+      --bg: #0B1220;
+      --card: #1A2332;
+      --text: #F8FAFC;
+      --muted: #94A3B8;
+      --primary: #3B82F6;
+      --primary-dark: #1D4ED8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 20px;
+      padding: 40px 28px;
+      max-width: 360px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .icon {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 20px;
+      border-radius: 50%;
+      background: rgba(59,130,246,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+    }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      letter-spacing: -0.02em;
+    }
+    p {
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+    button {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 28px;
+      font-size: 1rem;
+      font-weight: 600;
+      width: 100%;
+      cursor: pointer;
+      transition: transform 0.15s, opacity 0.15s;
+    }
+    button:active { transform: scale(0.97); opacity: 0.9; }
+    .hint {
+      margin-top: 18px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📡</div>
+    <h1>Tidak ada koneksi</h1>
+    <p>Periksa sinyal internet atau Wi-Fi, lalu coba lagi.<br/>Data di perangkat tetap aman.</p>
+    <button onclick="retry()">Coba Lagi</button>
+    <p class="hint">WALZPAY · Mode Offline</p>
+  </div>
+  <script>
+    function retry() {
+      if (window.WalzAndroid && typeof window.WalzAndroid.reload === 'function') {
+        window.WalzAndroid.reload();
+      } else {
+        // Fallback: try loading main site
+        location.href = 'https://walzpaynew.vercel.app/?v=3.1.0&t=' + Date.now();
+      }
+    }
+    // Auto-retry every 8s when online
+    window.addEventListener('online', function() { setTimeout(retry, 600); });
+  </script>
+</body>
+</html>
