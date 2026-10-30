@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 export type User = {
   id: string;
   email: string;
+  username: string;
   displayName: string;
   passwordHash: string;
   a2fEnabled: boolean;
@@ -32,6 +33,10 @@ function sessionKey(sid: string) {
 
 function userIdKey(id: string) {
   return `walzpay:uid:${id}`;
+}
+
+function usernameKey(username: string) {
+  return `walzpay:username:${username.toLowerCase().trim()}`;
 }
 
 export function scopedKey(userId: string, name: string) {
@@ -74,12 +79,50 @@ async function generateShortUserId(): Promise<string> {
   return "WLZPY" + randomDigits(7) + randomDigits(2);
 }
 
+/** Normalize username: a-z0-9_ only, 3–24 chars */
+export function normalizeUsername(raw: string): string {
+  return raw
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9_]/g, "")
+    .slice(0, 24);
+}
+
+export function isValidUsername(u: string): boolean {
+  return /^[a-z][a-z0-9_]{2,23}$/.test(u);
+}
+
+async function reserveUsername(username: string, userId: string): Promise<boolean> {
+  const redis = getRedis();
+  const key = usernameKey(username);
+  const existing = await redis.get(key);
+  if (existing && String(existing) !== userId) return false;
+  await redis.set(key, userId);
+  return true;
+}
+
+async function releaseUsername(username: string) {
+  if (!username) return;
+  const redis = getRedis();
+  await redis.del(usernameKey(username)).catch(() => {});
+}
+
+function ensureUsername(user: User): User {
+  if (user.username && isValidUsername(user.username)) return user;
+  const fallback = normalizeUsername(
+    user.username || user.displayName || user.email.split("@")[0] || "user"
+  );
+  const u = isValidUsername(fallback) ? fallback : `user${user.id.slice(-6).toLowerCase()}`;
+  return { ...user, username: u };
+}
+
 export async function findUserByEmail(email: string): Promise<User | null> {
   if (!hasRedisEnv()) return null;
   const redis = getRedis();
   const raw = await redis.get(userKey(email));
   if (!raw) return null;
-  return (typeof raw === "string" ? JSON.parse(raw) : raw) as User;
+  const user = (typeof raw === "string" ? JSON.parse(raw) : raw) as User;
+  return ensureUsername(user);
 }
 
 export async function findUserById(id: string): Promise<User | null> {
@@ -90,10 +133,21 @@ export async function findUserById(id: string): Promise<User | null> {
   return findUserByEmail(email);
 }
 
+export async function findUserByUsername(username: string): Promise<User | null> {
+  if (!hasRedisEnv()) return null;
+  const u = normalizeUsername(username);
+  if (!u) return null;
+  const redis = getRedis();
+  const uid = await redis.get(usernameKey(u));
+  if (!uid) return null;
+  return findUserById(String(uid));
+}
+
 export async function createUser(input: {
   email: string;
   password: string;
   displayName: string;
+  username?: string;
 }): Promise<{ ok: true; user: User } | { ok: false; error: string }> {
   const email = input.email.toLowerCase().trim();
   if (!email || !email.includes("@") || email.length < 5) {
@@ -105,13 +159,30 @@ export async function createUser(input: {
   const name = (input.displayName || email.split("@")[0]).trim().slice(0, 40);
   if (!name) return { ok: false, error: "Nama tampilan wajib" };
 
+  let username = normalizeUsername(
+    input.username || name || email.split("@")[0] || "user"
+  );
+  if (!isValidUsername(username)) {
+    username = normalizeUsername(`user${Date.now().toString(36).slice(-6)}`);
+  }
+  if (!isValidUsername(username)) {
+    return { ok: false, error: "Username tidak valid (huruf kecil, angka, _ )" };
+  }
+
   const existing = await findUserByEmail(email);
   if (existing) return { ok: false, error: "Email sudah terdaftar" };
 
+  const taken = await findUserByUsername(username);
+  if (taken) return { ok: false, error: "Username sudah digunakan" };
+
   const id = await generateShortUserId();
+  const reserved = await reserveUsername(username, id);
+  if (!reserved) return { ok: false, error: "Username sudah digunakan" };
+
   const user: User = {
     id,
     email,
+    username,
     displayName: name,
     passwordHash: await hashPassword(input.password),
     a2fEnabled: true,
@@ -138,13 +209,37 @@ export async function verifyUserPassword(
 
 export async function updateUser(
   userId: string,
-  patch: Partial<Pick<User, "displayName" | "passwordHash" | "a2fEnabled">>
+  patch: Partial<Pick<User, "displayName" | "username" | "passwordHash" | "a2fEnabled">>
 ): Promise<User | null> {
   const user = await findUserById(userId);
   if (!user) return null;
+
+  let nextUsername = user.username;
+  if (patch.username != null) {
+    const nu = normalizeUsername(String(patch.username));
+    if (!isValidUsername(nu)) {
+      throw new Error("Username tidak valid (3–24 karakter, mulai huruf)");
+    }
+    if (nu !== user.username) {
+      const taken = await findUserByUsername(nu);
+      if (taken && taken.id !== userId) {
+        throw new Error("Username sudah digunakan");
+      }
+      await releaseUsername(user.username);
+      const ok = await reserveUsername(nu, userId);
+      if (!ok) throw new Error("Username sudah digunakan");
+      nextUsername = nu;
+    }
+  }
+
   const next: User = {
     ...user,
     ...patch,
+    username: nextUsername,
+    displayName:
+      patch.displayName != null
+        ? String(patch.displayName).trim().slice(0, 40)
+        : user.displayName,
     updatedAt: new Date().toISOString(),
   };
   const redis = getRedis();
@@ -201,7 +296,10 @@ export async function getSession(): Promise<Session | null> {
 
 /** Resolve session from cookie OR x-walz-token / Authorization Bearer (mobile backup). */
 export async function resolveSession(
-  req: { cookies: { get: (n: string) => { value: string } | undefined }; headers: { get: (n: string) => string | null } }
+  req: {
+    cookies: { get: (n: string) => { value: string } | undefined };
+    headers: { get: (n: string) => string | null };
+  }
 ): Promise<Session | null> {
   const fromCookie = req.cookies.get(COOKIE_NAME)?.value;
   if (fromCookie) {
