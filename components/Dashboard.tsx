@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatRp, formatTime } from "@/lib/format";
 import { apiFetch, setStoredToken } from "@/lib/api";
 import { pushBubble } from "@/components/BubbleToasts";
@@ -28,6 +28,7 @@ type Forward = { id: string; url: string; enabled: boolean };
 type WeekDay = { key: string; label: string; count: number; amount: number };
 
 const LS_SOUND = "walzpay_sound";
+const POLL_MS = 5000;
 
 export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }) {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -39,12 +40,21 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
   const [sound, setSound] = useState(true);
   const [hookPath, setHookPath] = useState("/api/webhook");
   const [busy, setBusy] = useState(false);
-  const [lastCount, setLastCount] = useState(0);
   const [err, setErr] = useState<string | null>(null);
+
+  const lastCountRef = useRef(0);
+  const soundRef = useRef(true);
+  const onRedisRef = useRef(onRedis);
+  onRedisRef.current = onRedis;
+  soundRef.current = sound;
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setHookPath(`${window.location.origin}/api/webhook`);
+      const isApp =
+        Boolean((window as unknown as { __WALZ_APP__?: boolean }).__WALZ_APP__) ||
+        document.documentElement.getAttribute("data-walz-app") === "1" ||
+        /WalzpayApp/i.test(navigator.userAgent);
+      setHookPath(isApp ? "/api/webhook" : `${window.location.origin}/api/webhook`);
       try {
         setSound(localStorage.getItem(LS_SOUND) !== "0");
       } catch {
@@ -79,12 +89,15 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         apiFetch("/api/forwards").then(async (r) => ({ ok: r.ok, data: await r.json() })),
         apiFetch("/api/health").then(async (r) => ({ ok: r.ok, data: await r.json() })),
         apiFetch("/api/stats/week").then(async (r) => ({ ok: r.ok, data: await r.json() })),
-        apiFetch("/api/orders?status=pending").then(async (r) => ({ ok: r.ok, data: await r.json() })),
+        apiFetch("/api/orders?status=pending").then(async (r) => ({
+          ok: r.ok,
+          data: await r.json(),
+        })),
         apiFetch("/api/orders").then(async (r) => ({ ok: r.ok, data: await r.json() })),
       ]);
 
       const rok = Boolean(hRes.data?.redis && hRes.data?.ok);
-      onRedis?.(rok);
+      onRedisRef.current?.(rok);
 
       if (!pRes.ok) {
         const msg = String(pRes.data?.error || "Gagal memuat data");
@@ -93,7 +106,7 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
           window.location.replace("/login");
           return;
         }
-        setErr(msg);
+        setErr(msg.replace(/https?:\/\/[^\s]+/gi, "[server]").replace(/[\w.-]+\.vercel\.app/gi, "[server]"));
         return;
       }
       setErr(null);
@@ -102,7 +115,10 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
       if (wRes.ok) setWeek(wRes.data.days ?? []);
 
       const now = Date.now();
-      const pendingList = (oRes.data?.orders ?? []) as { status: string; expiresAt?: string | null }[];
+      const pendingList = (oRes.data?.orders ?? []) as {
+        status: string;
+        expiresAt?: string | null;
+      }[];
       const live = pendingList.filter((o) => {
         if (o.status !== "pending") return false;
         if (o.expiresAt && new Date(o.expiresAt).getTime() <= now) return false;
@@ -115,22 +131,22 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
 
       const count = pRes.data.stats?.count ?? 0;
       const latest: Payment | null = pRes.data.stats?.latest ?? null;
-      if (lastCount > 0 && count > lastCount && latest) {
+      if (lastCountRef.current > 0 && count > lastCountRef.current && latest) {
         const title = `Pembayaran ${formatRp(latest.amount)}`;
         const sub = `${latest.merchantId}${latest.paymentSource ? " · " + latest.paymentSource : ""}`;
         pushBubble({ title, sub, tone: "ok" });
-        if (sound) playBeep();
+        if (soundRef.current) playBeep();
       }
-      setLastCount(count);
+      lastCountRef.current = count;
     } catch (e) {
-      setErr(String(e));
-      onRedis?.(false);
+      setErr(String(e).replace(/https?:\/\/[^\s]+/gi, "[server]"));
+      onRedisRef.current?.(false);
     }
-  }, [sound, lastCount, onRedis]);
+  }, []);
 
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 2000);
+    const t = setInterval(refresh, POLL_MS);
     return () => clearInterval(t);
   }, [refresh]);
 
@@ -222,7 +238,9 @@ export function Dashboard({ onRedis }: { onRedis?: (v: boolean | null) => void }
         <h2>7 hari terakhir</h2>
         <div className="week-bars">
           {week.length === 0 ? (
-            <p className="empty" style={{ width: "100%" }}>Belum ada data minggu ini</p>
+            <p className="empty" style={{ width: "100%" }}>
+              Belum ada data minggu ini
+            </p>
           ) : (
             week.map((d) => (
               <div key={d.key} className="bar-col">
