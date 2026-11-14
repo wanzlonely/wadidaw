@@ -443,11 +443,11 @@
   margin: 0;
 }
 
-/* ─── CS floating ─── */
+/* ─── CS floating — di atas bottom nav, ikuti safe-area ─── */
 .cs-float {
   position: fixed;
   right: 14px;
-  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--nav-h, 72px) + 18px + max(6px, env(safe-area-inset-bottom, 0px)));
   z-index: 60;
   display: flex;
   align-items: center;
