@@ -44,7 +44,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
-        const val SITE_CACHE_BUST = "3.1.3"
+        const val SITE_CACHE_BUST = "3.1.4"
         private const val OFFLINE_URL = "file:///android_asset/offline.html"
     }
 
