@@ -18,6 +18,8 @@
   --blur: 40px;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
+  /* tinggi approx nav + margin agar content tidak tertutup di semua device */
+  --nav-h: 72px;
   --font: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
 }
 
@@ -67,7 +69,8 @@ a { color: var(--aqua-2); text-decoration: none; }
   z-index: 1;
   max-width: 440px;
   margin: 0 auto;
-  padding: calc(16px + var(--safe-t)) 16px calc(100px + var(--safe-b));
+  /* padding bawah = tinggi nav + gap + safe-area agar kartu terakhir (Beep) tidak tertutup */
+  padding: calc(16px + var(--safe-t)) 16px calc(var(--nav-h) + 28px + var(--safe-b));
   min-height: 100dvh;
   min-height: 100svh;
 }
@@ -201,23 +204,36 @@ a { color: var(--aqua-2); text-decoration: none; }
   50% { opacity: 0.4; }
 }
 
+/* Bottom nav — fixed di bawah, safe-area sebagai padding internal agar pas di semua perangkat */
 .nav-bottom {
   position: fixed;
   z-index: 40;
   left: 50%;
-  bottom: calc(6px + var(--safe-b));
+  bottom: 0;
   transform: translateX(-50%);
-  width: min(420px, calc(100% - 24px));
+  width: min(420px, calc(100% - 20px));
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 2px;
-  padding: 7px;
+  /* padding atas & samping, bawah = gap visual + safe-area */
+  padding: 8px 6px calc(8px + max(0px, var(--safe-b)));
+  margin-bottom: max(6px, env(safe-area-inset-bottom, 0px));
   border-radius: 26px;
-  background: rgba(20, 24, 40, 0.45);
+  background: rgba(20, 24, 40, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.18);
   backdrop-filter: blur(40px) saturate(1.8);
   -webkit-backdrop-filter: blur(40px) saturate(1.8);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+  /* pastikan tidak digeser oleh keyboard / layout lain */
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  margin-bottom: 6px;
+}
+
+@supports (padding: max(0px)) {
+  .nav-bottom {
+    margin-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+    padding-bottom: 8px;
+  }
 }
 
 .nav-bottom a {
@@ -225,7 +241,7 @@ a { color: var(--aqua-2); text-decoration: none; }
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  padding: 10px 4px 8px;
+  padding: 10px 2px 8px;
   border-radius: 18px;
   color: var(--ink-faint);
   font-size: 10px;
@@ -772,19 +788,7 @@ a { color: var(--aqua-2); text-decoration: none; }
   to { opacity: 1; transform: translateY(0); }
 }
 .anim-rise { animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.anim-pop { animation: pop-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
-@keyframes pop-in {
-  from { opacity: 0; transform: scale(0.92); }
-  to { opacity: 1; transform: scale(1); }
-}
-.anim-cancel { animation: cancel-out 0.42s cubic-bezier(0.4, 0, 0.6, 1) both; }
-@keyframes cancel-out {
-  0% { opacity: 1; transform: translateX(0) scale(1); }
-  30% { transform: translateX(-8px) rotate(-1deg); }
-  50% { transform: translateX(8px) rotate(1deg); }
-  100% { opacity: 0; transform: translateX(0) scale(0.94); }
-}
-.anim-success { animation: success-glow 0.7s ease both; }
+
 @keyframes success-glow {
   0% { box-shadow: 0 0 0 0 rgba(126, 224, 200, 0.5); }
   50% { box-shadow: 0 0 0 12px rgba(126, 224, 200, 0.15); }
@@ -891,20 +895,11 @@ a { color: var(--aqua-2); text-decoration: none; }
   width: 44px;
   height: 52px;
   text-align: center;
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 700;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.08);
   color: var(--ink);
-  font-family: var(--font);
   outline: none;
-}
-.otp-inputs input:focus {
-  border-color: rgba(174, 212, 255, 0.6);
-  box-shadow: 0 0 0 3px rgba(110, 182, 255, 0.2);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
 }
