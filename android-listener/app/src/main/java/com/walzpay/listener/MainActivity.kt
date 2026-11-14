@@ -31,10 +31,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -47,7 +44,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val SITE_URL = "https://walzpaynew.vercel.app"
-        const val SITE_CACHE_BUST = "3.1.2"
+        const val SITE_CACHE_BUST = "3.1.3"
         private const val OFFLINE_URL = "file:///android_asset/offline.html"
     }
 
@@ -98,7 +95,8 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // Edge-to-edge: biarkan web CSS pakai env(safe-area-inset-*) agar bottom nav pas di semua perangkat
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         SessionStore.init(this)
         setContentView(R.layout.activity_web)
 
@@ -106,16 +104,9 @@ class MainActivity : AppCompatActivity() {
             WebView.setWebContentsDebuggingEnabled(false)
         }
 
-        val root = findViewById<View>(R.id.rootContainer)
         webView = findViewById(R.id.webView)
         loading = findViewById(R.id.loadingOverlay)
         findViewById<View?>(R.id.fabListener)?.visibility = View.GONE
-
-        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.updatePadding(left = bars.left, top = bars.top, right = bars.right, bottom = bars.bottom)
-            insets
-        }
 
         val settings: WebSettings = webView.settings
         settings.javaScriptEnabled = true
