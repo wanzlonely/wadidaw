@@ -447,7 +447,7 @@
 .cs-float {
   position: fixed;
   right: 14px;
-  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   z-index: 60;
   display: flex;
   align-items: center;
