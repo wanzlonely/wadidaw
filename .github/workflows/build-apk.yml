@@ -67,14 +67,15 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      # Selalu buat / update GitHub Release agar publik bisa unduh dari tab Releases
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v3.1.4' }}
           name: WALZPAY ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v3.1.4' }}
           draft: false
           prerelease: false
+          make_latest: true
           generate_release_notes: true
           body: |
             ## WALZPAY Listener **3.1.4** (Release)
@@ -82,7 +83,7 @@ jobs:
             Aplikasi Android resmi untuk memantau notifikasi pembayaran → webhook dashboard.
 
             ### Unduh & install (publik)
-            1. Unduh **`WALZPAY-3.1.4.apk`** dari Assets di bawah
+            1. Unduh **`WALZPAY-3.1.4.apk`** dari **Assets** di bawah
             2. Settings HP → izinkan **Install unknown apps**
             3. Buka APK → Install
             4. Buka app → izinkan **Akses notifikasi** + **Tanpa batasan baterai**
@@ -104,4 +105,4 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Artifact: **walzpay-release-apk**" >> "$GITHUB_STEP_SUMMARY"
           echo "- File: **WALZPAY-3.1.4.apk** (signed release)" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Public: tab **Releases** → unduh APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Public: https://github.com/wanzlonely/wadidaw/releases" >> "$GITHUB_STEP_SUMMARY"
