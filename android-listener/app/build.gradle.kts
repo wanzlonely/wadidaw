@@ -3,6 +3,9 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
 android {
     namespace = "com.walzpay.listener"
     compileSdk = 35
@@ -11,8 +14,36 @@ android {
         applicationId = "com.walzpay.listener"
         minSdk = 26
         targetSdk = 35
-        versionCode = 35
-        versionName = "3.1.3"
+        versionCode = 36
+        versionName = "3.1.4"
+    }
+
+    signingConfigs {
+        create("release") {
+            // Prefer CI / local keystore.jks + passwords from env or keystore.properties
+            val keystoreFile = file("../keystore/walzpay-release.jks")
+            val propsFile = rootProject.file("keystore.properties")
+            val props = Properties()
+            if (propsFile.exists()) {
+                props.load(FileInputStream(propsFile))
+            }
+            val storePass = System.getenv("WALZPAY_STORE_PASSWORD")
+                ?: props.getProperty("storePassword")
+                ?: "WalzPay#Release2026!"
+            val keyPass = System.getenv("WALZPAY_KEY_PASSWORD")
+                ?: props.getProperty("keyPassword")
+                ?: storePass
+            val alias = System.getenv("WALZPAY_KEY_ALIAS")
+                ?: props.getProperty("keyAlias")
+                ?: "walzpay"
+
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = storePass
+                keyAlias = alias
+                keyPassword = keyPass
+            }
+        }
     }
 
     buildTypes {
@@ -23,9 +54,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isMinifyEnabled = false
+            // debug tetap pakai default debug keystore
         }
     }
 
