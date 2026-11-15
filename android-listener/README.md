@@ -5,34 +5,45 @@ Tugas: **memantau notifikasi** e-wallet/bank yang dipilih → parse nominal → 
 
 Website **tidak** membaca notifikasi HP. Yang membaca = **APK ini**.
 
+**Versi rilis publik:** `3.1.4` (signed release)
+
 ---
 
-## Build APK TANPA PC (GitHub Actions)
+## Install untuk publik (paling mudah)
 
-Repo sudah punya workflow otomatis. Bisa dari **HP** saja:
+1. Buka halaman **Releases**:  
+   **https://github.com/wanzlonely/wadidaw/releases**
+2. Pilih rilis terbaru (**v3.1.4**)
+3. Unduh **`WALZPAY-3.1.4.apk`**
+4. Di HP: Settings → izinkan **Install unknown apps** (Chrome / Files)
+5. Buka file APK → **Install**
+6. Buka **WALZPAY** → izinkan **Akses notifikasi** + **Tanpa batasan baterai**
+7. Login / isi **API key** dari website → **Setel**
 
-### Cara 1 — Trigger manual (paling mudah)
+Alternatif:  
+https://github.com/wanzlonely/wadidaw/actions → workflow **Build WALZPAY Release APK** → Artifacts → `walzpay-release-apk`
 
-1. Buka di browser HP:  
-   https://github.com/wanzlonely/wadidaw/actions/workflows/build-apk.yml
-2. Tap **Run workflow** → **Run workflow** (branch `main`)
-3. Tunggu ~3–6 menit sampai status **hijau**
-4. Tap run yang baru selesai → bagian **Artifacts**
-5. Unduh **walzpay-listener-apk** (file ZIP)
-6. Extract → dapat `app-debug.apk` → install di HP
+---
 
-> Jika tombol **Run workflow** tidak muncul: login GitHub, pastikan akun Anda punya akses write ke repo.
+## Build APK (GitHub Actions)
 
-### Cara 2 — Otomatis saat ada perubahan
+### Trigger manual
 
-Setiap push ke `main` yang mengubah folder `android-listener/` akan build ulang APK.  
-Hasilnya tetap di **Actions → Artifacts**.
+1. https://github.com/wanzlonely/wadidaw/actions/workflows/build-apk.yml
+2. **Run workflow** (branch `main`)
+3. Tunggu status hijau (~3–8 menit)
+4. Artifacts **atau** tab **Releases** (jika workflow_dispatch / tag)
+
+### Otomatis
+
+- Push ke `main` → build release APK (artifact)
+- Tag `v*` atau **Run workflow** → **GitHub Release** + APK publik
 
 ### Install di HP
 
-1. Settings → izinkan **Install unknown apps** untuk browser/file manager
-2. Buka `app-debug.apk` → Install
-3. Lanjut setup di bawah (izin notifikasi, API key, dll.)
+1. Settings → izinkan **Install unknown apps**
+2. Buka `WALZPAY-3.1.4.apk` → Install
+3. Lanjut setup izin di bawah
 
 ---
 
@@ -78,12 +89,12 @@ Hasilnya tetap di **Actions → Artifacts**.
 
 ## Setup HP (setelah install APK)
 
-1. Buka **WALZPAY Listener**
+1. Buka **WALZPAY**
 2. **Izinkan akses notifikasi** → centang app ini
 3. **Tanpa batasan baterai** → izinkan
-4. **Webhook URL** = `https://DOMAIN-ANDA.vercel.app/api/webhook`
+4. **Webhook URL** = `https://walzpaynew.vercel.app/api/webhook` (atau domain Anda)
 5. **API Key** = salin dari website **Setel → API key** (**wajib**)
-6. Secret = `WEBHOOK_SECRET` Vercel (opsional)
+6. Secret = opsional
 7. **Pilih sumber notifikasi** (DANA, GoPay, OVO, Shopee, WA, bank…)
 8. Toggle **Aktifkan Listener** → **Simpan**
 9. Xiaomi/OPPO/Vivo: **Autostart ON**
@@ -97,11 +108,12 @@ Hasilnya tetap di **Actions → Artifacts**.
 
 ---
 
-## Build lokal (jika punya PC)
+## Build lokal (PC + Android Studio)
 
-1. Android Studio → Open folder **`android-listener`**
-2. Gradle sync → **Build → Build APK(s)**
-3. Output: `app/build/outputs/apk/debug/app-debug.apk`
+1. Decode keystore: `base64 -d keystore/walzpay-release.jks.b64 > keystore/walzpay-release.jks`
+2. Open folder **`android-listener`** di Android Studio
+3. **Build → Generate Signed Bundle / APK → APK → release**
+4. Output: `app/build/outputs/apk/release/`
 
 ---
 
@@ -117,7 +129,7 @@ APK **tidak** chat bot langsung — website yang meneruskan.
 | File | Isi |
 |------|-----|
 | `PaymentNotificationListener.kt` | Tangkap notifikasi + POST + X-Api-Key |
-| `MainActivity.kt` | UI izin, API key, sumber, log |
+| `MainActivity.kt` | WebView dashboard + bridge izin |
 | `KeepAliveService.kt` | Foreground sticky |
 | `BootReceiver.kt` | Restart setelah boot |
-| `.github/workflows/build-apk.yml` | Build APK di cloud |
+| `.github/workflows/build-apk.yml` | Build **signed release** + GitHub Release |
