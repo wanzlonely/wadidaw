@@ -1,4 +1,4 @@
-name: Build WALZPAY Listener APK
+name: Build WALZPAY Release APK
 
 on:
   workflow_dispatch:
@@ -7,9 +7,18 @@ on:
     paths:
       - "android-listener/**"
       - ".github/workflows/build-apk.yml"
+  push:
+    tags:
+      - "v*"
+
+# Note: two push keys merge in YAML — use single push with both filters via jobs if needed.
+# GitHub Actions supports only one push key; tags + paths handled below with conditions.
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  build-release:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -30,27 +39,80 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      - name: Build debug APK
-        run: gradle assembleDebug --stacktrace
+      - name: Decode release keystore
+        run: |
+          mkdir -p keystore
+          base64 -d keystore/walzpay-release.jks.b64 > keystore/walzpay-release.jks
+          ls -la keystore/
 
-      - name: Rename APK to walzpay.apk
+      - name: Build signed release APK
+        env:
+          WALZPAY_STORE_PASSWORD: "WalzPay#Release2026!"
+          WALZPAY_KEY_PASSWORD: "WalzPay#Release2026!"
+          WALZPAY_KEY_ALIAS: walzpay
+        run: gradle assembleRelease --stacktrace
+
+      - name: Package APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/walzpay.apk
+          # Prefer universal / single APK path
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "Release APK not found" >&2
+            find app/build/outputs -type f -name "*.apk" || true
+            exit 1
+          fi
+          cp "$APK" dist/WALZPAY-3.1.4.apk
+          # Also keep generic name for docs
+          cp "$APK" dist/walzpay-release.apk
           ls -la dist/
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: walzpay-apk
-          path: android-listener/dist/walzpay.apk
+          name: walzpay-release-apk
+          path: |
+            android-listener/dist/WALZPAY-3.1.4.apk
+            android-listener/dist/walzpay-release.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
+
+      - name: Create GitHub Release (tags or manual)
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v3.1.4' }}
+          name: WALZPAY ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v3.1.4' }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## WALZPAY Listener **3.1.4** (Release)
+
+            Aplikasi Android resmi untuk memantau notifikasi pembayaran → webhook dashboard.
+
+            ### Unduh & install
+            1. Unduh **`WALZPAY-3.1.4.apk`** di bawah
+            2. Di HP: Settings → izinkan *Install unknown apps*
+            3. Buka file APK → Install
+            4. Buka app → izinkan **Akses notifikasi** + **Tanpa batasan baterai**
+            5. Login / isi API key dari website **Setel**
+
+            ### Perubahan
+            - Bottom navigation pas di semua perangkat (safe-area)
+            - Build **signed release** (siap distribusi publik)
+            - Cache web 3.1.4
+
+            Website: https://walzpaynew.vercel.app
+          files: |
+            android-listener/dist/WALZPAY-3.1.4.apk
+            android-listener/dist/walzpay-release.apk
 
       - name: Summary
         run: |
-          echo "### WALZPAY APK siap" >> "$GITHUB_STEP_SUMMARY"
+          echo "### WALZPAY Release APK siap" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "1. Buka run ini → **Artifacts** → **walzpay-apk**" >> "$GITHUB_STEP_SUMMARY"
-          echo "2. Extract ZIP → dapat **walzpay.apk**" >> "$GITHUB_STEP_SUMMARY"
-          echo "3. Install di HP" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact: **walzpay-release-apk**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- File: **WALZPAY-3.1.4.apk** (signed release)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Public download: tab **Releases** di repo" >> "$GITHUB_STEP_SUMMARY"
