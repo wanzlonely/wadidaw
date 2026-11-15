@@ -4,15 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    tags: ["v*"]
     paths:
       - "android-listener/**"
       - ".github/workflows/build-apk.yml"
-  push:
-    tags:
-      - "v*"
-
-# Note: two push keys merge in YAML — use single push with both filters via jobs if needed.
-# GitHub Actions supports only one push key; tags + paths handled below with conditions.
 
 permissions:
   contents: write
@@ -55,7 +50,6 @@ jobs:
       - name: Package APK
         run: |
           mkdir -p dist
-          # Prefer universal / single APK path
           APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
           if [ -z "$APK" ]; then
             echo "Release APK not found" >&2
@@ -63,10 +57,8 @@ jobs:
             exit 1
           fi
           cp "$APK" dist/WALZPAY-3.1.4.apk
-          # Also keep generic name for docs
           cp "$APK" dist/walzpay-release.apk
           ls -la dist/
-          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -78,7 +70,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Create GitHub Release (tags or manual)
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         with:
@@ -92,16 +84,16 @@ jobs:
 
             Aplikasi Android resmi untuk memantau notifikasi pembayaran → webhook dashboard.
 
-            ### Unduh & install
-            1. Unduh **`WALZPAY-3.1.4.apk`** di bawah
-            2. Di HP: Settings → izinkan *Install unknown apps*
-            3. Buka file APK → Install
+            ### Unduh & install (publik)
+            1. Unduh **`WALZPAY-3.1.4.apk`** dari Assets di bawah
+            2. Settings HP → izinkan **Install unknown apps**
+            3. Buka APK → Install
             4. Buka app → izinkan **Akses notifikasi** + **Tanpa batasan baterai**
             5. Login / isi API key dari website **Setel**
 
-            ### Perubahan
+            ### Perubahan 3.1.4
             - Bottom navigation pas di semua perangkat (safe-area)
-            - Build **signed release** (siap distribusi publik)
+            - Build **signed release** siap distribusi publik
             - Cache web 3.1.4
 
             Website: https://walzpaynew.vercel.app
@@ -115,4 +107,4 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Artifact: **walzpay-release-apk**" >> "$GITHUB_STEP_SUMMARY"
           echo "- File: **WALZPAY-3.1.4.apk** (signed release)" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Public download: tab **Releases** di repo" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Public: tab **Releases** → unduh APK" >> "$GITHUB_STEP_SUMMARY"
