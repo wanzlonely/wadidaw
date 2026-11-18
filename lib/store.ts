@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { getRedis, KEYS } from "./redis";
 import { K } from "./tenant";
 import { allocateAdminFee } from "./unique-code";
@@ -350,23 +351,38 @@ export async function matchPendingOrder(
     const cb = (item as Order).callbackUrl;
     if (cb && /^https?:\/\//i.test(cb)) {
       try {
-        await fetch(cb, {
+        const callbackPayload = {
+          event: "order.paid",
+          orderId: item.id,
+          token: item.token,
+          reference: item.reference ?? null,
+          amount: item.amount,
+          totalAmount: total,
+          adminFee: item.adminFee ?? 0,
+          status: "success",
+          paidAt: item.paidAt,
+          paymentId,
+        };
+        const callbackBody = JSON.stringify(callbackPayload);
+        const callbackSecret = process.env.WALZPAY_CALLBACK_SECRET;
+        const callbackHeaders: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (callbackSecret) {
+          const signature = createHmac("sha256", callbackSecret)
+            .update(callbackBody)
+            .digest("hex");
+          callbackHeaders["X-Walzpay-Signature"] = `sha256=${signature}`;
+        }
+        const callbackResponse = await fetch(cb, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            event: "order.paid",
-            orderId: item.id,
-            token: item.token,
-            reference: item.reference ?? null,
-            amount: item.amount,
-            totalAmount: total,
-            adminFee: item.adminFee ?? 0,
-            status: "success",
-            paidAt: item.paidAt,
-            paymentId,
-          }),
+          headers: callbackHeaders,
+          body: callbackBody,
           signal: AbortSignal.timeout(8000),
         });
+        if (!callbackResponse.ok) {
+          throw new Error(`Callback HTTP ${callbackResponse.status}`);
+        }
         await addLog("info", `Callback sent → ${cb}`, { orderId: item.id });
       } catch (e) {
         await addLog("warn", `Callback failed ${cb}`, String(e));
