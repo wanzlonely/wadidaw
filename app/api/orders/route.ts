@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createOrder, listOrders, cancelOrder, sweepExpiredOrders } from "@/lib/store";
-import { getStaticQris } from "@/lib/static-qris";
+import { getStaticQris, listStaticQris } from "@/lib/static-qris";
 import { convertStaticToDynamic, computeAdminFee } from "@/lib/qris-convert";
 import { getSettingsForUser, findUserIdByApiKey } from "@/lib/settings";
 import { getRedis, hasRedisEnv } from "@/lib/redis";
@@ -104,6 +104,15 @@ export async function POST(req: NextRequest) {
 
     const callbackUrl =
       body.callbackUrl != null ? String(body.callbackUrl).trim() : null;
+    const savedQris = await listStaticQris();
+    const qrisStaticId =
+      body.qrisStaticId != null ? String(body.qrisStaticId) : savedQris[0]?.id || null;
+    if (!qrisStaticId) {
+      return NextResponse.json(
+        { error: "QRIS statis belum disiapkan. Simpan satu QRIS di menu Setel terlebih dahulu." },
+        { status: 400 }
+      );
+    }
 
     const order = await createOrder({
       amount,
@@ -119,8 +128,6 @@ export async function POST(req: NextRequest) {
         callbackUrl && /^https?:\/\//i.test(callbackUrl) ? callbackUrl : null,
     });
 
-    const qrisStaticId =
-      body.qrisStaticId != null ? String(body.qrisStaticId) : null;
     if (qrisStaticId) {
       const tpl = await getStaticQris(qrisStaticId);
       if (!tpl) {

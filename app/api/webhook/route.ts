@@ -41,7 +41,7 @@ async function resolveAuth(req: NextRequest): Promise<{
     return { ok: false, userId: null, reason: "Secret salah / API key kosong" };
   }
 
-  return { ok: true, userId: null };
+  return { ok: false, userId: null, reason: "API key atau WEBHOOK_SECRET wajib dikonfigurasi" };
 }
 
 export async function POST(req: NextRequest) {
